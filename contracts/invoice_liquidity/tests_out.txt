@@ -1,0 +1,142 @@
+warning: profiles for the non root package will be ignored, specify profiles at the workspace root:
+package:   /home/nursca/Invoice-Liquidity-Network/invoice-liquidity-network/contracts/invoice_liquidity/Cargo.toml
+workspace: /home/nursca/Invoice-Liquidity-Network/invoice-liquidity-network/Cargo.toml
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.16s
+     Running unittests src/lib.rs (/home/nursca/Invoice-Liquidity-Network/invoice-liquidity-network/target/debug/deps/invoice_liquidity-8d303523a4fd8430)
+
+running 109 tests
+test test::test_expire_pending_invoice_after_due_date ... ok
+test test::test_claim_default_success ... ok
+test test::test_claim_default_non_funder_fails ... ok
+test test::test_expire_pending_invoice_before_due_date_fails ... ok
+test test::test_full_lifecycle_lp_earns_correct_yield ... ok
+test test::test_claim_default_on_paid_invoice_fails ... ok
+test test::test_claim_default_before_due_date_fails ... ok
+test test::test_claim_default_twice_fails ... ok
+test test::test_fund_expired_invoice_fails ... ok
+test test::test_fund_nonexistent_invoice_fails ... ok
+test test::test_full_lifecycle_payer_balance_reduces_correctly ... ok
+test test::test_fund_already_funded_invoice_fails ... ok
+test test::test_fund_invoice_sets_funded_at_timestamp ... ok
+test test::test_mark_paid_nonexistent_invoice_fails ... ok
+test test::test_fund_invoice_transfers_correct_amounts ... ok
+test test::test_mark_paid_on_pending_invoice_fails ... ok
+test test::test_fund_invoice_updates_status_to_funded ... ok
+test test::test_new_payer_score_is_neutral ... ok
+test test::test_mark_paid_twice_fails ... ok
+test test::test_mark_paid_releases_full_amount_to_lp ... ok
+test test::test_submit_invoice_returns_id ... ok
+test test::test_mark_paid_updates_status ... ok
+test test::test_submit_invoices_batch_atomicity_fail ... ok
+test test::test_submit_invoice_stores_correct_fields ... ok
+test test::test_perfect_payer_score ... ok
+test test::test_payer_with_default ... ok
+test test::test_submit_invoices_batch_rejects_over_limit ... ok
+test test::test_submit_rejects_negative_amount ... ok
+test test::test_submit_rejects_zero_amount ... ok
+test test::test_submit_rejects_zero_discount_rate ... ok
+test test::test_submit_rejects_past_due_date ... ok
+test test::test_submit_rejects_discount_rate_above_50_percent ... ok
+test test::test_submit_multiple_invoices_increment_ids ... ok
+test test::test_submit_invoices_batch_happy_path ... ok
+test test::test_transfer_funded_invoice_fails ... ok
+test test::test_transfer_invoice_updates_freelancer ... ok
+test test::test_transfer_nonexistent_invoice_fails ... ok
+test tests_arithmetic::test_invariant_payout_plus_discount_eq_amount_across_all_cases ... ok
+test tests_arithmetic::test_max_realistic_invoice ... ok
+test tests_arithmetic::test_min_invoice_min_rate ... ok
+test tests_arithmetic::test_overflow_falls_back_to_zero_discount ... ok
+test tests_arithmetic::test_rate_at_1_bps ... ok
+test tests_arithmetic::test_rate_at_50_percent_cap ... ok
+test tests_arithmetic::test_small_amount_with_remainder ... ok
+test tests_arithmetic::test_uneven_division_rounds_down ... ok
+test test::test_update_invoice_emits_updated_event ... ok
+test test::test_update_invoice_rejects_invalid_amount ... ok
+test test::test_update_invoice_rejects_invalid_discount_rate ... ok
+test test::test_update_invoice_rejects_invalid_due_date ... ok
+test test::test_update_invoice_rejects_non_freelancer ... ok
+test test::test_update_funded_invoice_fails ... ok
+test tests_auth::cancel_invoice_rejects_wrong_signer ... ok
+test test::test_update_invoice_updates_pending_invoice_fields ... ok
+test tests_auth::claim_default_rejects_wrong_signer ... ok
+test tests_auth::fund_invoice_accepts_funder_signature ... ok
+test tests_auth::fund_invoice_rejects_wrong_signer ... ok
+test tests_auth::cancel_invoice_accepts_freelancer_signature ... ok
+test tests_auth::submit_invoice_accepts_freelancer_signature ... ok
+test tests_auth::claim_default_accepts_funder_signature ... FAILED
+test tests_auth::submit_invoice_rejects_wrong_signer ... ok
+test tests_auth::update_invoice_accepts_freelancer_signature ... ok
+test tests_auth::mark_paid_rejects_wrong_signer ... ok
+test tests_auth::update_invoice_rejects_wrong_signer ... ok
+test tests_mutation::mt01_due_date_equal_to_now_is_rejected ... ok
+test tests_auth::mark_paid_accepts_payer_signature ... ok
+test tests_mutation::mt02_partial_fund_keeps_status_partially_funded ... ok
+test tests_mutation::mt03_payer_score_increases_by_exactly_one_on_settlement ... ok
+test tests_distribution::distribution_hooks_track_lp_freelancer_and_payer ... ok
+test tests_mutation::mt07_suggested_discount_rate_formula ... ok
+test tests_mutation::mt06_discount_rate_at_cap_is_accepted ... ok
+test tests_mutation::mt04_payer_score_decreases_by_exactly_five_on_default ... ok
+test tests_regression::regression_concurrent_invoice_ids_unique ... ok
+test tests_regression::regression_batch_invoice_ids_unique ... ok
+test tests_regression::regression_due_date_must_be_future ... ok
+test tests_regression::regression_discount_rounding_minimum_amount ... ok
+test tests_regression::regression_wasm32_target_independence ... ok
+test tests_regression::regression_fund_exact_amount_no_dust ... ok
+test tests_security::test_funding_invoice_a_does_not_affect_invoice_b ... ok
+test tests_security::test_overflow_max_amount_does_not_panic ... ok
+test tests_security::test_overflow_boundary_half_max_amount_no_panic ... ok
+test tests_state_machine::test_cannot_claim_default_before_due_date ... ok
+test tests_security::test_storage_isolation_adjacent_invoice_ids ... ok
+test tests_state_machine::test_cannot_claim_default_on_paid_invoice ... ok
+test tests_state_machine::test_cannot_claim_default_on_partially_funded_invoice ... ok
+test tests_state_machine::test_cannot_claim_default_on_pending_invoice ... FAILED
+test tests_state_machine::test_cannot_claim_default_twice ... ok
+test tests_state_machine::test_cannot_fund_defaulted_invoice ... ok
+test tests_state_machine::test_cannot_fund_already_funded_invoice ... ok
+test tests_state_machine::test_all_reachable_states_from_pending ... ok
+test tests_state_machine::test_cannot_mark_paid_on_partially_funded_invoice ... ok
+test tests_state_machine::test_cannot_fund_already_paid_invoice ... ok
+test tests_state_machine::test_cannot_mark_paid_on_defaulted_invoice ... ok
+test tests_state_machine::test_cannot_mark_paid_on_pending_invoice ... ok
+test tests_state_machine::test_cannot_mark_paid_twice ... ok
+test tests_state_machine::test_cannot_transfer_funded_invoice ... ok
+test tests_state_machine::test_exact_multi_party_funding_completion ... ok
+test tests_state_machine::test_overfunding_rejected_preserves_state ... ok
+test tests_mutation::mt05_payer_score_floors_at_zero_not_negative ... ok
+test tests_state_machine::test_funded_to_paid ... ok
+test tests_state_machine::test_funded_to_defaulted ... ok
+test tests_security::test_payout_never_negative_for_valid_inputs ... ok
+test tests_state_machine::test_pending_to_partially_funded_to_funded ... ok
+test tests_state_machine::test_pending_to_funded_full_funding ... ok
+test tests_storage::test_data_persistence_after_advancement ... ok
+test tests_storage::test_submit_invoice_sets_ttl ... ok
+test tests_storage::test_storage_ttl_near_boundary ... ok
+test tests_storage::test_invoice_count_persistence_across_versions ... ok
+test tests_storage::test_fund_invoice_extends_ttl ... ok
+test tests_state_machine::test_state_transition_matrix_validation ... ok
+
+failures:
+
+---- tests_auth::claim_default_accepts_funder_signature stdout ----
+
+thread 'tests_auth::claim_default_accepts_funder_signature' (16258) panicked at contracts/invoice_liquidity/src/tests_auth.rs:34:18:
+expected successful invocation, got Err(Ok(Error(Contract, #10)))
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+Writing test snapshot file for test "tests_auth::claim_default_accepts_funder_signature" to "test_snapshots/tests_auth/claim_default_accepts_funder_signature.1.json".
+
+---- tests_state_machine::test_cannot_claim_default_on_pending_invoice stdout ----
+
+thread 'tests_state_machine::test_cannot_claim_default_on_pending_invoice' (16291) panicked at contracts/invoice_liquidity/src/tests_state_machine.rs:351:5:
+assertion `left == right` failed
+  left: Err(Ok(Unauthorized))
+ right: Err(Ok(NotFunded))
+Writing test snapshot file for test "tests_state_machine::test_cannot_claim_default_on_pending_invoice" to "test_snapshots/tests_state_machine/test_cannot_claim_default_on_pending_invoice.1.json".
+
+
+failures:
+    tests_auth::claim_default_accepts_funder_signature
+    tests_state_machine::test_cannot_claim_default_on_pending_invoice
+
+test result: FAILED. 107 passed; 2 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.45s
+
+error: test failed, to rerun pass `--lib`

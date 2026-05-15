@@ -1,0 +1,12 @@
+# Rust's output directory
+target
+
+# Local settings
+.soroban
+.stellar
+
+# Environment files
+.env
+
+node_modules/
+sdk/node_modules/

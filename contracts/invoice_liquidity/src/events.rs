@@ -1,0 +1,107 @@
+use soroban_sdk::{contractevent, Address};
+
+use crate::invoice::InvoiceStatus;
+
+#[contractevent(topics = ["submitted"])]
+#[derive(Clone, Debug, PartialEq)]
+pub struct InvoiceSubmitted {
+    #[topic]
+    pub invoice_id: u64,
+    #[topic]
+    pub freelancer: Address,
+    #[topic]
+    pub payer: Address,
+    pub token: Address,
+    pub amount: i128,
+    pub due_date: u64,
+    pub discount_rate: u32,
+    pub status: InvoiceStatus,
+}
+
+#[contractevent(topics = ["updated"])]
+#[derive(Clone, Debug, PartialEq)]
+pub struct InvoiceUpdated {
+    #[topic]
+    pub invoice_id: u64,
+    #[topic]
+    pub freelancer: Address,
+    #[topic]
+    pub payer: Address,
+    pub token: Address,
+    pub amount: i128,
+    pub due_date: u64,
+    pub discount_rate: u32,
+    pub status: InvoiceStatus,
+}
+
+#[contractevent(topics = ["funded"])]
+#[derive(Clone, Debug, PartialEq)]
+pub struct InvoiceFunded {
+    #[topic]
+    pub invoice_id: u64,
+    #[topic]
+    pub funder: Address,
+    pub freelancer: Address,
+    pub payer: Address,
+    pub token: Address,
+    pub fund_amount: i128,
+    pub amount_funded: i128,
+    pub invoice_amount: i128,
+    pub due_date: u64,
+    pub discount_rate: u32,
+    pub funded_at: Option<u64>,
+    pub status: InvoiceStatus,
+}
+
+#[contractevent(topics = ["paid"])]
+#[derive(Clone, Debug, PartialEq)]
+pub struct InvoicePaid {
+    #[topic]
+    pub invoice_id: u64,
+    #[topic]
+    pub payer: Address,
+    pub funder: Address,
+    pub freelancer: Address,
+    pub token: Address,
+    pub amount: i128,
+    pub discount_amount: i128,
+    pub due_date: u64,
+    pub paid_on_time: bool,
+    pub status: InvoiceStatus,
+}
+
+#[contractevent(topics = ["defaulted"])]
+#[derive(Clone, Debug, PartialEq)]
+pub struct InvoiceDefaulted {
+    #[topic]
+    pub invoice_id: u64,
+    #[topic]
+    pub funder: Address,
+    pub freelancer: Address,
+    pub payer: Address,
+    pub token: Address,
+    pub amount: i128,
+    pub due_date: u64,
+    pub defaulted_at: u64,
+    pub discount_amount: i128,
+    pub status: InvoiceStatus,
+}
+
+#[contractevent(topics = ["transferred"])]
+#[derive(Clone, Debug, PartialEq)]
+pub struct InvoiceTransferred {
+    #[topic]
+    pub invoice_id: u64,
+    pub old_freelancer: Address,
+    pub new_freelancer: Address,
+    pub status: InvoiceStatus,
+}
+
+#[contractevent(topics = ["cancelled"])]
+#[derive(Clone, Debug, PartialEq)]
+pub struct InvoiceCancelled {
+    #[topic]
+    pub invoice_id: u64,
+    pub freelancer: Address,
+    pub status: InvoiceStatus,
+}
