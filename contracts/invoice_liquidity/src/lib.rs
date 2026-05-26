@@ -13,7 +13,7 @@ use soroban_sdk::{
 };
 
 use events::{
-    InvoiceCancelled, InvoiceDefaulted, InvoiceFunded, InvoicePaid, InvoiceSubmitted,
+    AdminChanged, InvoiceCancelled, InvoiceDefaulted, InvoiceFunded, InvoicePaid, InvoiceSubmitted,
     InvoiceTransferred, InvoiceUpdated,
 };
 use invoice::{
@@ -72,9 +72,14 @@ impl InvoiceLiquidityContract {
 
     // ------------------------------------------------------------
     pub fn set_admin(env: Env, new_admin: Address) {
-        let admin: Address = env.storage().instance().get(&StorageKey::Admin).unwrap();
-        admin.require_auth();
+        let old_admin: Address = env.storage().instance().get(&StorageKey::Admin).unwrap();
+        old_admin.require_auth();
         env.storage().instance().set(&StorageKey::Admin, &new_admin);
+        env.events().publish_event(&AdminChanged {
+            old_admin,
+            new_admin,
+            timestamp: env.ledger().timestamp(),
+        });
     }
 
     pub fn update_fee_rate(env: Env, rate: u32) {
@@ -175,6 +180,7 @@ impl InvoiceLiquidityContract {
             due_date: invoice.due_date,
             discount_rate: invoice.discount_rate,
             status: invoice.status.clone(),
+            timestamp: env.ledger().timestamp(),
         });
 
         Ok(id)
@@ -294,6 +300,7 @@ impl InvoiceLiquidityContract {
                 due_date: invoice.due_date,
                 discount_rate: invoice.discount_rate,
                 status: invoice.status.clone(),
+                timestamp: env.ledger().timestamp(),
             });
 
             ids.push_back(id);
@@ -889,6 +896,7 @@ mod test;
 mod tests_arithmetic;
 mod tests_auth;
 mod tests_distribution;
+mod tests_invariants;
 mod tests_mutation;
 mod tests_protocol_fee;
 mod tests_security;
