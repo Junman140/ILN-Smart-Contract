@@ -195,6 +195,10 @@ impl InvoiceLiquidityContract {
 
         freelancer.require_auth();
 
+        if freelancer == payer {
+            return Err(ContractError::SelfInvoice);
+        }
+
         validate_invoice_terms(&env, amount, due_date, discount_rate)?;
 
         // token validation
