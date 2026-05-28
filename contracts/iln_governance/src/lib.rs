@@ -133,6 +133,8 @@ pub enum StorageKey {
     GovToken,
     Proposal(u64),
     ProposalCount,
+    /// Proposal-scoped voting-power snapshot keyed by voter.
+    VoteWeightSnapshot(u64, Address),
     /// Issue #61: per-(voter, proposal_id) double-vote guard.
     HasVoted(u64, Address),
 }
@@ -198,7 +200,7 @@ impl GovContract {
 
         let proposal = GovernanceProposal {
             id,
-            proposer,
+            proposer: proposer.clone(),
             description_hash,
             action_type,
             proposed_value,
@@ -208,6 +210,18 @@ impl GovContract {
             created_at: now,
             voting_end,
         };
+
+        let token_addr: Address = env
+            .storage()
+            .instance()
+            .get(&StorageKey::GovToken)
+            .unwrap();
+        let token = TokenClient::new(&env, &token_addr);
+        let proposer_weight = token.balance(&proposer);
+        env.storage().persistent().set(
+            &StorageKey::VoteWeightSnapshot(id, proposer.clone()),
+            &proposer_weight,
+        );
 
         env.storage()
             .persistent()
@@ -226,7 +240,9 @@ impl GovContract {
     /// * `proposal_id` – the proposal to vote on
     /// * `support`     – true = vote for, false = vote against
     ///
-    /// Vote weight equals the caller's current governance-token balance.
+    /// Vote weight uses the stored checkpoint for this proposal/voter pair.
+    /// If no checkpoint exists yet, the current balance is recorded once and
+    /// reused for the remainder of the proposal.
     /// Returns `GovernanceError::AlreadyVoted` if the caller has already voted.
     pub fn cast_vote(
         env: Env,
@@ -262,7 +278,15 @@ impl GovContract {
             .get(&StorageKey::GovToken)
             .unwrap();
         let token = TokenClient::new(&env, &token_addr);
-        let weight = token.balance(&voter);
+        let snapshot_key = StorageKey::VoteWeightSnapshot(proposal_id, voter.clone());
+        let weight: i128 = match env.storage().persistent().get(&snapshot_key) {
+            Some(weight) => weight,
+            None => {
+                let current = token.balance(&voter);
+                env.storage().persistent().set(&snapshot_key, &current);
+                current
+            }
+        };
         if weight == 0 {
             return Err(GovernanceError::NoVotingPower);
         }
@@ -402,3 +426,6 @@ impl GovContract {
             .has(&StorageKey::HasVoted(proposal_id, voter))
     }
 }
+
+#[cfg(test)]
+mod test;

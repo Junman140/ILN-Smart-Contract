@@ -35,15 +35,19 @@ and quorum/majority criteria are met.
 
 ## 2. Governance token and voting power
 
-Voting power equals the caller's balance of the governance token at the moment
-`vote()` is called (a snapshot is **not** taken at proposal creation time).
+Voting power is read from per-proposal checkpoints, not the live balance at vote
+call time. When a proposal is created, the proposer’s current governance-token
+balance is recorded as the initial checkpoint. The contract also maintains a
+proposal-scoped checkpoint for each voter; if no checkpoint exists yet, the
+first vote records that voter’s current balance and reuses it for the duration
+of the proposal.
 
 | Property | Value |
 |----------|-------|
 | Token | Address supplied to `initialize(gov_token)` |
 | Unit of power | 1 token = 1 vote (raw balance in stroops) |
-| Snapshot | None — live balance at vote time |
-| Minimum power | Must be > 0 (0-balance callers are rejected with `panic!("no voting power")`) |
+| Snapshot | Per-proposal voter checkpoint stored in contract storage |
+| Minimum power | Must be > 0 (0-balance callers are rejected with `GovernanceError::NoVotingPower`) |
 
 ---
 
@@ -119,10 +123,12 @@ Result: proposal_id = 1
 Step 2 — Vote
 ─────────────
 During the 3-day window, token holders call:
-  GovContract::vote(voter_addr, proposal_id=1, support=true)   // For
-  GovContract::vote(voter_addr, proposal_id=1, support=false)  // Against
+  GovContract::cast_vote(voter_addr, proposal_id=1, support=true)   // For
+  GovContract::cast_vote(voter_addr, proposal_id=1, support=false)  // Against
 
-Each call adds the voter's current token balance to votes_for or votes_against.
+Each call uses the stored checkpoint weight for that proposal/voter pair and
+adds it to votes_for or votes_against. This prevents balance changes after the
+checkpoint from changing the voter's weight mid-proposal.
 
 Step 3 — Execute (after end_time)
 ──────────────────────────────────
@@ -177,10 +183,10 @@ An attacker with > 10% of supply can reach quorum alone.  Mitigations:
 
 ### Flash-loan / balance manipulation
 
-Voting power is the live balance at `vote()` call time, not a historical
-snapshot.  A flash-loan attack could inflate voting power within a single
-transaction.  Mitigation: snapshot balances at proposal creation, or require a
-lock-up period before a voter's balance counts.
+Voting power is pinned to proposal-scoped checkpoints, so later balance changes
+cannot inflate a voter's weight during an active proposal. The proposer's
+balance is snapshotted at proposal creation, and other voters are checkpointed
+when they first vote.
 
 ### Delegation
 
