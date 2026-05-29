@@ -9,6 +9,7 @@
 //! - Volume tracking for XLM
 
 use soroban_sdk::{Address, Env};
+use soroban_sdk::testutils::Address as _;
 use soroban_sdk::token::{Client as TokenClient, StellarAssetClient};
 
 use invoice_liquidity::{InvoiceLiquidityContractClient, ContractError, InvoiceStatus};
