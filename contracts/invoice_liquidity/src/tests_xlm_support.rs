@@ -11,8 +11,8 @@
 #![cfg(test)]
 
 use super::*;
-use soroban_sdk::token::{Client as TokenClient, StellarAssetClient};
 use soroban_sdk::testutils::Address as _;
+use soroban_sdk::token::{Client as TokenClient, StellarAssetClient};
 use soroban_sdk::{Address, Env};
 
 const XLM_DECIMALS: u32 = 7; // 1 XLM = 10,000,000 stroops

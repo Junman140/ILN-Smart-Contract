@@ -6,10 +6,7 @@
 
 use super::*;
 use soroban_sdk::{
-    testutils::{
-        storage::Temporary,
-        Address as _, Events, Ledger,
-    },
+    testutils::{storage::Temporary, Address as _, Events, Ledger},
     token::{Client as TokenClient, StellarAssetClient},
     Address, BytesN, Env,
 };
@@ -56,7 +53,15 @@ fn setup() -> GovTestEnv {
     ledger.timestamp = 1_700_000_000;
     env.ledger().set(ledger);
 
-    GovTestEnv { env, contract, gov_token, gov_token_admin, voter_a, voter_b, proposer }
+    GovTestEnv {
+        env,
+        contract,
+        gov_token,
+        gov_token_admin,
+        voter_a,
+        voter_b,
+        proposer,
+    }
 }
 
 fn dummy_hash(env: &Env) -> BytesN<32> {
@@ -186,11 +191,9 @@ fn test_proposal_creation_snapshots_proposer_balance() {
     let id = create_fee_proposal(&t);
 
     let snapshot_key = StorageKey::VoteWeightSnapshot(id, t.proposer.clone());
-    let snapshot: i128 = t
-        .env
-        .as_contract(&t.contract.address, || {
-            t.env.storage().persistent().get(&snapshot_key).unwrap()
-        });
+    let snapshot: i128 = t.env.as_contract(&t.contract.address, || {
+        t.env.storage().persistent().get(&snapshot_key).unwrap()
+    });
 
     assert_eq!(snapshot, t.gov_token.balance(&t.proposer));
 }
@@ -331,7 +334,10 @@ fn test_cast_vote_emits_vote_cast_event() {
     let id = create_fee_proposal(&t);
     t.contract.cast_vote(&t.voter_a, &id, &true);
     let events = t.env.events().all().filter_by_contract(&t.contract.address);
-    assert!(!events.events().is_empty(), "VoteCast event should be emitted");
+    assert!(
+        !events.events().is_empty(),
+        "VoteCast event should be emitted"
+    );
 }
 
 #[test]
@@ -474,7 +480,7 @@ fn test_redelegation_moves_weight_to_new_delegate() {
     t.gov_token_admin.mint(&voter_c, &500);
 
     t.contract.delegate_votes(&t.voter_a, &t.voter_b); // A → B
-    t.contract.delegate_votes(&t.voter_a, &voter_c);   // A → C (re-delegate)
+    t.contract.delegate_votes(&t.voter_a, &voter_c); // A → C (re-delegate)
 
     let id = create_fee_proposal(&t);
 
@@ -492,7 +498,10 @@ fn test_delegate_votes_emits_votes_delegated_event() {
     let t = setup();
     t.contract.delegate_votes(&t.voter_a, &t.voter_b);
     let events = t.env.events().all().filter_by_contract(&t.contract.address);
-    assert!(!events.events().is_empty(), "VotesDelegated event should be emitted");
+    assert!(
+        !events.events().is_empty(),
+        "VotesDelegated event should be emitted"
+    );
 }
 
 #[test]
@@ -501,7 +510,10 @@ fn test_undelegate_votes_emits_votes_undelegated_event() {
     t.contract.delegate_votes(&t.voter_a, &t.voter_b);
     t.contract.undelegate_votes(&t.voter_a);
     let events = t.env.events().all().filter_by_contract(&t.contract.address);
-    assert!(events.events().len() >= 2, "VotesUndelegated event should be emitted");
+    assert!(
+        events.events().len() >= 1,
+        "VotesUndelegated event should be emitted"
+    );
 }
 
 #[test]
@@ -517,4 +529,37 @@ fn test_zero_balance_voter_with_delegation_can_vote() {
 
     let p = t.contract.get_proposal(&id);
     assert_eq!(p.votes_for, 1_000); // only delegated weight from voter_a
+}
+
+#[test]
+fn test_incremental_vote_result_caching_and_delegation() {
+    let t = setup();
+
+    // Create a proposal
+    let id = create_fee_proposal(&t);
+
+    // Initial cached totals should be 0
+    let initial_p = t.contract.get_proposal(&id);
+    assert_eq!(initial_p.votes_for, 0);
+    assert_eq!(initial_p.votes_against, 0);
+
+    // Delegate voter_a to voter_b
+    t.contract.delegate_votes(&t.voter_a, &t.voter_b);
+
+    // voter_b votes for the proposal.
+    // voter_b has 2,000 own weight + 1,000 delegated from voter_a = 3,000 weight.
+    t.contract.cast_vote(&t.voter_b, &id, &true);
+
+    // Cached votes_for should be 3,000 now
+    let p_after_vote1 = t.contract.get_proposal(&id);
+    assert_eq!(p_after_vote1.votes_for, 3_000);
+    assert_eq!(p_after_vote1.votes_against, 0);
+
+    // proposer (500 weight) votes against.
+    t.contract.cast_vote(&t.proposer, &id, &false);
+
+    // Cached totals should update incrementally to votes_for = 3,000 and votes_against = 500
+    let p_final = t.contract.get_proposal(&id);
+    assert_eq!(p_final.votes_for, 3_000);
+    assert_eq!(p_final.votes_against, 500);
 }

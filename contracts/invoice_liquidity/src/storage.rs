@@ -15,6 +15,7 @@ pub enum DataKey {
     Paused,
     /// Minimum payer reputation required to fund an invoice (Issue #28). Default 0.
     MinPayerReputation,
+    NextInvoiceId,
 
     // Persistent Storage
     Invoice(u64),
@@ -260,8 +261,6 @@ pub fn get_pre_default_payer_score(env: &Env, invoice_id: u64) -> Option<u32> {
 // ----------------------------------------------------------------
 // Contract Stats Helpers
 // ----------------------------------------------------------------
-
-
 
 pub fn increment_total_invoices(env: &Env) {
     let current: u64 = env
