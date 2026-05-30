@@ -127,6 +127,13 @@ pub struct DisputeRecord {
     pub disputed_at: u32,
 }
 
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct TopPayerEntry {
+    pub address: Address,
+    pub score: u32,
+}
+
 // ----------------------------------------------------------------
 // Issue #34: Single entry in the LP priority queue
 // ----------------------------------------------------------------
@@ -169,10 +176,16 @@ pub fn remove_invoice_from_submitter(env: &Env, submitter: &Address, invoice_id:
         }
     }
     let key = StorageKey::SubmitterInvoices(submitter.clone());
-    env.storage().persistent().set(&key, &new_invoices);
-    env.storage()
-        .persistent()
-        .extend_ttl(&key, 1_000_000, 2_000_000);
+    if new_invoices.is_empty() {
+        if env.storage().persistent().has(&key) {
+            env.storage().persistent().remove(&key);
+        }
+    } else {
+        env.storage().persistent().set(&key, &new_invoices);
+        env.storage()
+            .persistent()
+            .extend_ttl(&key, 1_000_000, 2_000_000);
+    }
 }
 
 pub fn get_lp_invoices(env: &Env, lp: &Address) -> soroban_sdk::Vec<u64> {
@@ -296,20 +309,36 @@ pub fn get_payer_score(env: &Env, payer: &Address) -> u32 {
 
             rep.score
         }
-        None => 50, // Default neutral score for new users
+        None => crate::constants::DEFAULT_PAYER_SCORE,
     }
 }
 
-/// Update a payer's reputation score (capped at 100)
+fn payer_score_key(payer: &Address) -> StorageKey {
+    StorageKey::PayerScore(payer.clone())
+}
+
+/// Update a payer's reputation score (capped at 100).
+/// Uses lazy initialisation: default scores are not persisted until changed.
 pub fn set_payer_score(env: &Env, payer: &Address, score: u32) {
     let score = score.min(100);
-    let rep = ReputationScore {
-        score,
-        last_activity_ledger: env.ledger().sequence(),
-    };
-    env.storage()
-        .persistent()
-        .set(&StorageKey::PayerScore(payer.clone()), &rep);
+    let key = payer_score_key(payer);
+    let old_score = get_payer_score(env, payer);
+
+    if score == crate::constants::DEFAULT_PAYER_SCORE {
+        if env.storage().persistent().has(&key) {
+            env.storage().persistent().remove(&key);
+        }
+    } else {
+        let rep = ReputationScore {
+            score,
+            last_activity_ledger: env.ledger().sequence(),
+        };
+        env.storage().persistent().set(&key, &rep);
+    }
+
+    if old_score != score {
+        crate::top_payers::update_top_payers_on_score_change(env, payer, score);
+    }
 }
 
 // ----------------------------------------------------------------
@@ -332,8 +361,21 @@ pub fn get_reputation(env: &Env, address: &Address) -> ReputationProfile {
 }
 
 /// Persist an address's reputation profile.
+/// Uses lazy initialisation: zero-value profiles are not stored.
 pub fn set_reputation(env: &Env, profile: &ReputationProfile) {
     let key = StorageKey::Reputation(profile.address.clone());
+    let is_empty = profile.invoices_submitted == 0
+        && profile.invoices_paid == 0
+        && profile.invoices_defaulted == 0
+        && profile.score == 0;
+
+    if is_empty {
+        if env.storage().persistent().has(&key) {
+            env.storage().persistent().remove(&key);
+        }
+        return;
+    }
+
     env.storage().persistent().set(&key, profile);
     env.storage()
         .persistent()
@@ -372,11 +414,17 @@ pub fn get_invoice_funders(env: &Env, id: u64) -> soroban_sdk::Vec<(Address, i12
         .unwrap_or(soroban_sdk::Vec::new(env))
 }
 
-/// Save the list of funders for an invoice
+/// Save the list of funders for an invoice.
+/// Uses lazy initialisation: empty lists are not stored.
 pub fn save_invoice_funders(env: &Env, id: u64, funders: &soroban_sdk::Vec<(Address, i128)>) {
-    env.storage()
-        .persistent()
-        .set(&StorageKey::InvoiceFunders(id), funders);
+    let key = StorageKey::InvoiceFunders(id);
+    if funders.is_empty() {
+        if env.storage().persistent().has(&key) {
+            env.storage().persistent().remove(&key);
+        }
+    } else {
+        env.storage().persistent().set(&key, funders);
+    }
 }
 
 // ----------------------------------------------------------------
@@ -427,20 +475,30 @@ pub fn save_dispute(env: &Env, invoice_id: u64, record: &DisputeRecord) {
 // Issue #34: LP score + queue helpers
 // ----------------------------------------------------------------
 
-/// LP reputation score starts at 50 (same neutral baseline as payers)
+/// LP reputation score starts at 50 (same neutral baseline as payers).
+/// Uses lazy initialisation: default scores are not persisted until changed.
 pub fn get_lp_score(env: &Env, lp: &Address) -> u32 {
     env.storage()
         .persistent()
         .get(&StorageKey::LpScore(lp.clone()))
-        .unwrap_or(50)
+        .unwrap_or(crate::constants::DEFAULT_LP_SCORE)
 }
 
-/// Update an LP's reputation score (capped at 100)
+/// Update an LP's reputation score (capped at 100).
+/// Uses lazy initialisation: default scores are not persisted until changed.
 pub fn set_lp_score(env: &Env, lp: &Address, score: u32) {
     let score = score.min(100);
-    env.storage()
-        .persistent()
-        .set(&StorageKey::LpScore(lp.clone()), &score);
+    let key = StorageKey::LpScore(lp.clone());
+
+    if score == crate::constants::DEFAULT_LP_SCORE {
+        if env.storage().persistent().has(&key) {
+            env.storage().persistent().remove(&key);
+        }
+    } else {
+        env.storage()
+            .persistent()
+            .set(&key, &score);
+    }
 }
 
 /// Return all queued LP requests for an invoice
@@ -588,8 +646,20 @@ pub fn add_volume(env: &Env, token: &Address, amount: i128) {
             }
         }
     }
-    if token_list.len() > 1 {
-        if let Some(eurc_addr) = token_list.get(1) {
+    if let Some(config) = crate::storage::get_config(env) {
+        if token == &config.xlm_sac_address {
+            let current: i128 = env
+                .storage()
+                .persistent()
+                .get(&StorageKey::TotalVolumeXlm)
+                .unwrap_or(0);
+            env.storage()
+                .persistent()
+                .set(&StorageKey::TotalVolumeXlm, &(current + amount));
+        }
+    }
+    if token_list.len() > 2 {
+        if let Some(eurc_addr) = token_list.get(2) {
             if token == &eurc_addr {
                 let current: i128 = env
                     .storage()
@@ -599,20 +669,6 @@ pub fn add_volume(env: &Env, token: &Address, amount: i128) {
                 env.storage()
                     .persistent()
                     .set(&StorageKey::TotalVolumeEurc, &(current + amount));
-            }
-        }
-    }
-    if token_list.len() > 2 {
-        if let Some(xlm_addr) = token_list.get(2) {
-            if token == &xlm_addr {
-                let current: i128 = env
-                    .storage()
-                    .persistent()
-                    .get(&StorageKey::TotalVolumeXlm)
-                    .unwrap_or(0);
-                env.storage()
-                    .persistent()
-                    .set(&StorageKey::TotalVolumeXlm, &(current + amount));
             }
         }
     }

@@ -43,6 +43,7 @@ fn test_appeal_and_dispute_record_storage_roundtrip() {
         appealed_at: 1_700_000_500u64.try_into().unwrap(),
         pre_default_score: 72,
     };
+
     let dispute = DisputeRecord {
         reason_hash: BytesN::from_array(&t.env, &[0xBB; 32]),
         disputed_at: 12345u32,

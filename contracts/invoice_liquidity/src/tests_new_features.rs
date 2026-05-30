@@ -220,7 +220,11 @@ fn test_contract_stats_tracks_token_volumes_and_oracle_normalization() {
     assert_eq!(stats.total_volume_usd_normalized, 0);
 
     let oracle_id = t.env.register(MockPriceOracle, ());
-    t.contract.set_price_oracle(&oracle_id);
+    t.env.as_contract(&t.contract.address, || {
+        let mut config = crate::storage::get_config(&t.env).unwrap();
+        config.price_oracle = Some(oracle_id.clone());
+        crate::storage::set_config(&t.env, &config);
+    });
 
     let stats = t.contract.get_contract_stats();
     assert_eq!(

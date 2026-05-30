@@ -258,6 +258,10 @@ fn test_non_payer_cannot_dispute() {
 fn test_auto_resolve_dispute_timeout_behavior() {
     let t = setup_dispute();
 
+    let xlm_sac_address = t.env.as_contract(&t.contract.address, || {
+        crate::storage::get_config(&t.env).unwrap().xlm_sac_address
+    });
+
     let config = Config {
         high_rep_threshold: 80,
         bonus_bps: 200,
@@ -265,7 +269,7 @@ fn test_auto_resolve_dispute_timeout_behavior() {
         decay_rate_bps: 100,
         decay_period_ledgers: 1000,
         dispute_timeout_ledgers: 100,
-        xlm_sac_address: Address::generate(&t.env),
+        xlm_sac_address,
         price_oracle: None,
     };
     t.env.as_contract(&t.contract.address, || {

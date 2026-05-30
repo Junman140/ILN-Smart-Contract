@@ -127,7 +127,7 @@ fn test_submit_invoice_stores_correct_fields() {
     assert_eq!(invoice.payer, t.payer);
     assert_eq!(invoice.token, t.token.address);
     assert_eq!(invoice.amount, INVOICE_AMOUNT);
-    assert_eq!(invoice.due_date, due_date as u32);
+    assert_eq!(u64::from(invoice.due_date), due_date);
     assert_eq!(invoice.discount_rate, DISCOUNT_RATE);
     assert_eq!(invoice.status, InvoiceStatus::Pending);
     assert!(invoice.funder.is_none());
@@ -154,7 +154,7 @@ fn test_get_invoice_returns_existing_invoice() {
     assert_eq!(invoice.payer, t.payer);
     assert_eq!(invoice.token, t.token.address);
     assert_eq!(invoice.amount, INVOICE_AMOUNT);
-    assert_eq!(invoice.due_date, due_date as u32);
+    assert_eq!(u64::from(invoice.due_date), due_date);
     assert_eq!(invoice.discount_rate, DISCOUNT_RATE);
     assert_eq!(invoice.status, InvoiceStatus::Pending);
     assert_eq!(invoice.amount_funded, 0);
@@ -408,7 +408,7 @@ fn test_update_invoice_updates_pending_invoice_fields() {
 
     let invoice = t.contract.get_invoice(&id);
     assert_eq!(invoice.amount, updated_amount);
-    assert_eq!(invoice.due_date, updated_due_date as u32);
+    assert_eq!(u64::from(invoice.due_date), updated_due_date);
     assert_eq!(invoice.discount_rate, updated_discount_rate);
     assert_eq!(invoice.payer, t.payer);
     assert_eq!(invoice.status, InvoiceStatus::Pending);
@@ -625,7 +625,7 @@ fn test_fund_invoice_sets_funded_at_timestamp() {
     t.contract.fund_invoice(&t.funder, &id, &INVOICE_AMOUNT);
 
     let invoice = t.contract.get_invoice(&id);
-    assert_eq!(invoice.funded_at, Some(now as u32));
+    assert_eq!(invoice.funded_at, Some(now.try_into().expect("timestamp")));
 }
 
 // ----------------------------------------------------------------

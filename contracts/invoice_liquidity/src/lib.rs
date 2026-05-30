@@ -1,5 +1,8 @@
 #![no_std]
 
+#[cfg(test)]
+extern crate std;
+
 pub mod access;
 pub mod config;
 pub mod errors;
@@ -7,6 +10,7 @@ pub mod events;
 pub mod invoice;
 pub mod rate_logic;
 pub mod storage;
+pub mod top_payers;
 use access::*;
 pub mod constants;
 #[cfg(test)]
@@ -19,7 +23,7 @@ mod tests_xlm_support;
 
 pub use crate::invoice::{
     AppealRecord, Invoice, InvoiceParams, InvoiceStatus, LpFundRequest, ReputationProfile,
-    ReputationScore,
+    ReputationScore, TopPayerEntry,
 };
 pub use crate::storage::DataKey;
 pub use config::{Config, ConfigError};
@@ -1692,6 +1696,16 @@ impl InvoiceLiquidityContract {
     }
 
     // ----------------------------------------------------------------
+    // get_top_payers (Issue #77)
+    // ----------------------------------------------------------------
+    /// Return up to `limit` payers with the highest reputation scores.
+    /// Reads from the maintained top-payers heap — no full-list sort required.
+    /// Access: Anyone
+    pub fn get_top_payers(env: Env, limit: u32) -> Vec<TopPayerEntry> {
+        crate::top_payers::get_top_payers(&env, limit)
+    }
+
+    // ----------------------------------------------------------------
     // get_reputation (Issue #26)
     // ----------------------------------------------------------------
     /// Read an address's detailed reputation profile. Unknown addresses return
@@ -1925,3 +1939,9 @@ mod tests_security;
 mod tests_state_machine;
 mod tests_storage;
 mod tests_storage_extra;
+#[cfg(test)]
+mod tests_benchmarks;
+#[cfg(test)]
+mod tests_top_payers;
+#[cfg(test)]
+mod tests_lazy_storage;
