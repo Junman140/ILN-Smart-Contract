@@ -18,6 +18,11 @@ const VOTE_RECEIPT_TTL_THRESHOLD_LEDGERS: u32 = 50_000;
 const VOTE_RECEIPT_TTL_LEDGERS: u32 = 69_120;
 /// Default minimum quorum = 10% (1000 bps).
 const DEFAULT_MIN_QUORUM_BPS: u32 = 1_000;
+/// Default voting window: 3 days at ~5 s/ledger ≈ 51_840 ledgers.
+/// Expressed in seconds to match `env.ledger().timestamp()`.
+const VOTING_PERIOD_SECS: u64 = 259_200;
+/// Default minimum token balance required to submit a proposal (1 000 stroops).
+const DEFAULT_MIN_PROPOSAL_BALANCE: i128 = 1_000;
 
 /// Maximum transitive delegation chain depth we will traverse.
 const MAX_DELEGATION_DEPTH: u32 = 10;
@@ -53,6 +58,8 @@ pub enum GovernanceError {
     NotVetoable = 17,
     /// Issue #68: admin veto power has been disabled by governance.
     VetoPowerDisabled = 18,
+    /// Proposer does not hold the minimum required token balance.
+    InsufficientProposerBalance = 19,
 }
 
 // ================================================================
@@ -158,6 +165,19 @@ pub struct ProposalVetoed {
     pub reason_hash: BytesN<32>,
 }
 
+/// Emitted when a new governance proposal is created.
+#[contractevent(topics = ["proposal_created"])]
+#[derive(Clone, Debug, PartialEq)]
+pub struct ProposalCreated {
+    #[topic]
+    pub proposal_id: u64,
+    #[topic]
+    pub proposer: Address,
+    pub action_type: ProposalAction,
+    pub proposed_value: i128,
+    pub voting_end: u64,
+}
+
 // ================================================================
 // Storage keys
 // ================================================================
@@ -182,6 +202,8 @@ pub enum StorageKey {
     Admin,
     /// Issue #68: when `true`, admin veto power is active; when `false`, it has been disabled.
     VetoPowerEnabled,
+    /// Configurable minimum token balance a proposer must hold.
+    MinProposalBalance,
 }
 
 // ================================================================
@@ -254,7 +276,7 @@ impl GovContract {
         Ok(())
     }
 
-    // ── Issue #59: create_proposal ────────────────────────────────
+    // ── Issue #59 / feat/create-proposal ─────────────────────────
 
     pub fn create_proposal(
         env: Env,
@@ -265,6 +287,21 @@ impl GovContract {
     ) -> Result<u64, GovernanceError> {
         proposer.require_auth();
 
+        // ── Balance check ─────────────────────────────────────────
+        let token_addr: Address = env.storage().instance().get(&StorageKey::GovToken).unwrap();
+        let token = TokenClient::new(&env, &token_addr);
+        let proposer_balance = token.balance(&proposer);
+
+        let min_balance: i128 = env
+            .storage()
+            .instance()
+            .get(&StorageKey::MinProposalBalance)
+            .unwrap_or(DEFAULT_MIN_PROPOSAL_BALANCE);
+
+        if proposer_balance < min_balance {
+            return Err(GovernanceError::InsufficientProposerBalance);
+        }
+
         let count: u64 = env
             .storage()
             .instance()
@@ -273,13 +310,13 @@ impl GovContract {
         let id = count + 1;
 
         let now = env.ledger().timestamp();
-        let voting_end = now + 259_200;
+        let voting_end = now + VOTING_PERIOD_SECS;
 
         let proposal = GovernanceProposal {
             id,
             proposer: proposer.clone(),
             description_hash,
-            action_type,
+            action_type: action_type.clone(),
             proposed_value,
             status: ProposalStatus::Active,
             votes_for: 0,
@@ -289,12 +326,10 @@ impl GovContract {
             eta_ledger: 0,
         };
 
-        let token_addr: Address = env.storage().instance().get(&StorageKey::GovToken).unwrap();
-        let token = TokenClient::new(&env, &token_addr);
-        let proposer_weight = token.balance(&proposer);
+        // Snapshot the proposer's balance at proposal creation time.
         env.storage().persistent().set(
             &StorageKey::VoteWeightSnapshot(id, proposer.clone()),
-            &proposer_weight,
+            &proposer_balance,
         );
 
         env.storage()
@@ -304,7 +339,43 @@ impl GovContract {
             .instance()
             .set(&StorageKey::ProposalCount, &id);
 
+        env.events().publish_event(&ProposalCreated {
+            proposal_id: id,
+            proposer,
+            action_type,
+            proposed_value,
+            voting_end,
+        });
+
         Ok(id)
+    }
+
+    /// Returns the configured minimum proposer balance.
+    pub fn get_min_proposal_balance(env: Env) -> i128 {
+        env.storage()
+            .instance()
+            .get(&StorageKey::MinProposalBalance)
+            .unwrap_or(DEFAULT_MIN_PROPOSAL_BALANCE)
+    }
+
+    /// Updates the minimum proposer balance.
+    ///
+    /// Authorization: the configured ILN contract address must authorize.
+    pub fn set_min_proposal_balance(
+        env: Env,
+        min_balance: i128,
+    ) -> Result<(), GovernanceError> {
+        let iln_contract: Address = env
+            .storage()
+            .instance()
+            .get(&StorageKey::IlnContract)
+            .unwrap();
+        iln_contract.require_auth();
+
+        env.storage()
+            .instance()
+            .set(&StorageKey::MinProposalBalance, &min_balance);
+        Ok(())
     }
 
     // ── Issue #64: delegate_votes ─────────────────────────────────

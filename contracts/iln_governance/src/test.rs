@@ -55,7 +55,7 @@ fn setup() -> GovTestEnv {
 
     gov_token_admin.mint(&voter_a, &1_000);
     gov_token_admin.mint(&voter_b, &2_000);
-    gov_token_admin.mint(&proposer, &500);
+    gov_token_admin.mint(&proposer, &1_000);
 
     let iln_contract = env.register(MockIln, ());
 
@@ -739,13 +739,13 @@ fn test_incremental_vote_result_caching_and_delegation() {
     assert_eq!(p_after_vote1.votes_for, 3_000);
     assert_eq!(p_after_vote1.votes_against, 0);
 
-    // proposer (500 weight) votes against.
+    // proposer (1_000 weight) votes against.
     t.contract.cast_vote(&t.proposer, &id, &false);
 
-    // Cached totals should update incrementally to votes_for = 3,000 and votes_against = 500
+    // Cached totals should update incrementally to votes_for = 3,000 and votes_against = 1_000
     let p_final = t.contract.get_proposal(&id);
     assert_eq!(p_final.votes_for, 3_000);
-    assert_eq!(p_final.votes_against, 500);
+    assert_eq!(p_final.votes_against, 1_000);
 }
 
 // ── Issue #68: veto_proposal ──────────────────────────────────────────────────
@@ -949,4 +949,190 @@ fn test_veto_executed_proposal_returns_not_vetoable() {
         GovContract::veto_proposal(t.env.clone(), id, reason_hash(&t.env))
     });
     assert_eq!(res2, Err(GovernanceError::NotVetoable));
+}
+
+// ── feat/create-proposal: balance check, event, configurable window ───────────
+
+/// Proposer with exactly MIN_PROPOSAL_BALANCE can create a proposal.
+#[test]
+fn test_create_proposal_with_exact_min_balance_succeeds() {
+    let t = setup();
+    // proposer has exactly 1_000 tokens in setup — equal to the default MIN_PROPOSAL_BALANCE.
+    assert_eq!(t.gov_token.balance(&t.proposer), 1_000);
+
+    let id = t.contract.create_proposal(
+        &t.proposer,
+        &ProposalAction::UpdateFeeRate(100),
+        &dummy_hash(&t.env),
+        &100_i128,
+    );
+    let p = t.contract.get_proposal(&id);
+    assert_eq!(p.status, ProposalStatus::Active);
+}
+
+/// Proposer with balance above the minimum can create a proposal.
+#[test]
+fn test_create_proposal_with_sufficient_balance_succeeds() {
+    let t = setup();
+    // voter_a has 1_000 tokens — above the 1_000 default minimum.
+    let id = t.contract.create_proposal(
+        &t.voter_a,
+        &ProposalAction::UpdateFeeRate(50),
+        &dummy_hash(&t.env),
+        &50_i128,
+    );
+    let p = t.contract.get_proposal(&id);
+    assert_eq!(p.proposer, t.voter_a);
+    assert_eq!(p.status, ProposalStatus::Active);
+}
+
+/// Proposer with balance below the minimum is rejected.
+#[test]
+#[should_panic]
+fn test_create_proposal_insufficient_balance_panics() {
+    let t = setup();
+    // Create a fresh address with only 500 tokens — below the default minimum of 1_000.
+    let poor_proposer = Address::generate(&t.env);
+    t.gov_token_admin.mint(&poor_proposer, &500);
+    t.contract.create_proposal(
+        &poor_proposer,
+        &ProposalAction::UpdateFeeRate(200),
+        &dummy_hash(&t.env),
+        &200_i128,
+    );
+}
+
+/// Proposer with balance below the minimum returns InsufficientProposerBalance.
+#[test]
+fn test_create_proposal_insufficient_balance_returns_error() {
+    let t = setup();
+    // Create a fresh address with only 500 tokens — below the default minimum of 1_000.
+    let poor_proposer = Address::generate(&t.env);
+    t.gov_token_admin.mint(&poor_proposer, &500);
+    let res = t.env.as_contract(&t.contract.address, || {
+        GovContract::create_proposal(
+            t.env.clone(),
+            poor_proposer.clone(),
+            ProposalAction::UpdateFeeRate(200),
+            dummy_hash(&t.env),
+            200_i128,
+        )
+    });
+    assert_eq!(res, Err(GovernanceError::InsufficientProposerBalance));
+}
+
+/// Address with zero balance cannot create a proposal.
+#[test]
+#[should_panic]
+fn test_create_proposal_zero_balance_panics() {
+    let t = setup();
+    let zero_addr = Address::generate(&t.env);
+    t.contract.create_proposal(
+        &zero_addr,
+        &ProposalAction::UpdateFeeRate(200),
+        &dummy_hash(&t.env),
+        &200_i128,
+    );
+}
+
+/// create_proposal emits a ProposalCreated event.
+#[test]
+fn test_create_proposal_emits_proposal_created_event() {
+    let t = setup();
+    // voter_a has 1_000 tokens — meets the default minimum.
+    t.contract.create_proposal(
+        &t.voter_a,
+        &ProposalAction::UpdateFeeRate(100),
+        &dummy_hash(&t.env),
+        &100_i128,
+    );
+    let events = t.env.events().all().filter_by_contract(&t.contract.address);
+    assert!(
+        !events.events().is_empty(),
+        "ProposalCreated event should be emitted"
+    );
+}
+
+/// Voting window is set to VOTING_PERIOD_SECS (259_200 s) from creation time.
+#[test]
+fn test_create_proposal_voting_end_equals_voting_period_secs() {
+    let t = setup();
+    let now = t.env.ledger().timestamp();
+    let id = t.contract.create_proposal(
+        &t.voter_a,
+        &ProposalAction::UpdateFeeRate(100),
+        &dummy_hash(&t.env),
+        &100_i128,
+    );
+    let p = t.contract.get_proposal(&id);
+    assert_eq!(p.voting_end, now + 259_200);
+}
+
+/// get_min_proposal_balance returns the default value after initialisation.
+#[test]
+fn test_get_min_proposal_balance_returns_default() {
+    let t = setup();
+    assert_eq!(t.contract.get_min_proposal_balance(), 1_000);
+}
+
+/// set_min_proposal_balance updates the threshold; a previously-blocked
+/// proposer can now create a proposal once the threshold is lowered.
+#[test]
+fn test_set_min_proposal_balance_allows_previously_blocked_proposer() {
+    let t = setup();
+    // Create a fresh address with only 500 tokens — blocked at default 1_000.
+    let poor_proposer = Address::generate(&t.env);
+    t.gov_token_admin.mint(&poor_proposer, &500);
+
+    let res = t.env.as_contract(&t.contract.address, || {
+        GovContract::create_proposal(
+            t.env.clone(),
+            poor_proposer.clone(),
+            ProposalAction::UpdateFeeRate(200),
+            dummy_hash(&t.env),
+            200_i128,
+        )
+    });
+    assert_eq!(res, Err(GovernanceError::InsufficientProposerBalance));
+
+    // Lower the threshold to 500 via the ILN contract auth.
+    t.contract.set_min_proposal_balance(&500_i128);
+    assert_eq!(t.contract.get_min_proposal_balance(), 500);
+
+    // Now the proposer can create a proposal.
+    let id = t.contract.create_proposal(
+        &poor_proposer,
+        &ProposalAction::UpdateFeeRate(200),
+        &dummy_hash(&t.env),
+        &200_i128,
+    );
+    let p = t.contract.get_proposal(&id);
+    assert_eq!(p.proposer, poor_proposer);
+    assert_eq!(p.status, ProposalStatus::Active);
+}
+
+/// All four ProposalAction variants are accepted by create_proposal.
+#[test]
+fn test_create_proposal_all_action_variants_accepted() {
+    let t = setup();
+    let token_addr = Address::generate(&t.env);
+
+    let actions: &[(ProposalAction, i128)] = &[
+        (ProposalAction::UpdateFeeRate(100), 100),
+        (ProposalAction::AddToken(token_addr.clone()), 0),
+        (ProposalAction::RemoveToken(token_addr.clone()), 0),
+        (ProposalAction::UpdateMaxDiscountRate(50), 50),
+    ];
+
+    for (action, value) in actions {
+        let id = t.contract.create_proposal(
+            &t.voter_a,
+            action,
+            &dummy_hash(&t.env),
+            value,
+        );
+        let p = t.contract.get_proposal(&id);
+        assert_eq!(p.action_type, *action);
+        assert_eq!(p.proposed_value, *value);
+    }
 }
