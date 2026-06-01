@@ -8,10 +8,10 @@ use super::*;
 use soroban_sdk::{
     testutils::{Address as _, Events as _, Ledger},
     token::{Client as TokenClient, StellarAssetClient},
-    Address, Env, Event,
+    Address, Env, Event, Symbol,
 };
 
-use crate::events::{AdminChanged, InvoiceSubmitted};
+use crate::events::{AdminChanged, InvoiceSubmitted, ParameterUpdated};
 
 // ----------------------------------------------------------------
 // Test helpers (duplicated from test.rs to keep modules independent)
@@ -57,13 +57,22 @@ fn setup() -> TestEnv {
     let xlm_id = env.register_stellar_asset_contract_v2(xlm_admin);
     let xlm_address = xlm_id.address();
 
-    contract.initialize(&admin, &usdc_address, &xlm_address);
+    let eurc_address = Address::generate(&env);
+    contract.initialize(&admin, &usdc_address, &eurc_address, &xlm_address);
 
     let mut info = env.ledger().get();
     info.timestamp = 1_700_000_000;
     env.ledger().set(info);
 
-    TestEnv { env, contract, token, freelancer, payer, funder, admin }
+    TestEnv {
+        env,
+        contract,
+        token,
+        freelancer,
+        payer,
+        funder,
+        admin,
+    }
 }
 
 fn submit_standard_invoice(t: &TestEnv) -> u64 {
@@ -170,7 +179,7 @@ fn invariants_hold_after_submit() {
 fn invariants_hold_after_fund() {
     let t = setup();
     let id = submit_standard_invoice(&t);
-    t.contract.fund_invoice(&t.funder, &id, &INVOICE_AMOUNT);
+    t.contract.fund_invoice(&t.funder, &id, &INVOICE_AMOUNT, &false);
     check_invariants(&t.env, &t.contract);
 }
 
@@ -178,7 +187,7 @@ fn invariants_hold_after_fund() {
 fn invariants_hold_after_mark_paid() {
     let t = setup();
     let id = submit_standard_invoice(&t);
-    t.contract.fund_invoice(&t.funder, &id, &INVOICE_AMOUNT);
+    t.contract.fund_invoice(&t.funder, &id, &INVOICE_AMOUNT, &false);
     t.contract.mark_paid(&id, &INVOICE_AMOUNT);
     check_invariants(&t.env, &t.contract);
 }
@@ -199,7 +208,7 @@ fn invariants_hold_across_multiple_invoices() {
     let id2 = submit_standard_invoice(&t);
     let id3 = submit_standard_invoice(&t);
 
-    t.contract.fund_invoice(&t.funder, &id1, &INVOICE_AMOUNT);
+    t.contract.fund_invoice(&t.funder, &id1, &INVOICE_AMOUNT, &false);
     t.contract.mark_paid(&id1, &INVOICE_AMOUNT);
     check_invariants(&t.env, &t.contract);
 
@@ -230,7 +239,7 @@ fn invariant_logic_catches_funded_without_funder() {
     check_invariants(&t.env, &t.contract);
 
     // Fund so we get a Funded invoice, then verify funder IS set.
-    t.contract.fund_invoice(&t.funder, &id, &INVOICE_AMOUNT);
+    t.contract.fund_invoice(&t.funder, &id, &INVOICE_AMOUNT, &false);
     let funded = t.contract.get_invoice(&id);
     assert!(
         funded.funder.is_some(),
@@ -256,6 +265,7 @@ fn submit_invoice_event_contains_all_fields() {
         &due_date,
         &DISCOUNT_RATE,
         &t.token.address,
+        &Option::<soroban_sdk::BytesN<32>>::None,
     );
 
     let events = t.env.events().all().filter_by_contract(&t.contract.address);
@@ -267,6 +277,7 @@ fn submit_invoice_event_contains_all_fields() {
         amount: INVOICE_AMOUNT,
         due_date,
         discount_rate: DISCOUNT_RATE,
+        referral_code: None,
         status: InvoiceStatus::Pending,
         timestamp: ts_before,
     }
@@ -296,6 +307,7 @@ fn submit_invoice_event_timestamp_matches_ledger() {
         &due_date,
         &DISCOUNT_RATE,
         &t.token.address,
+        &Option::<soroban_sdk::BytesN<32>>::None,
     );
 
     let events = t.env.events().all().filter_by_contract(&t.contract.address);
@@ -307,6 +319,7 @@ fn submit_invoice_event_timestamp_matches_ledger() {
         amount: INVOICE_AMOUNT,
         due_date,
         discount_rate: DISCOUNT_RATE,
+        referral_code: None,
         status: InvoiceStatus::Pending,
         timestamp: 1_800_000_000,
     }
@@ -388,4 +401,124 @@ fn set_admin_unauthorized_caller_fails() {
     // The set_admin implementation calls old_admin.require_auth(), which
     // is the correct guard — verified by code review and the passing
     // set_admin_emits_admin_changed_event test that relies on mock_all_auths.
+}
+
+// ----------------------------------------------------------------
+// Issue #58 — ParameterUpdated event tests
+// ----------------------------------------------------------------
+
+#[test]
+fn update_fee_rate_emits_parameter_updated_event() {
+    let t = setup();
+
+    t.contract.update_fee_rate(&250);
+
+    let events = t.env.events().all().filter_by_contract(&t.contract.address);
+    let expected = ParameterUpdated {
+        param_name: Symbol::new(&t.env, "protocol_fee_rate_bps"),
+        old_value: 0,
+        new_value: 250,
+        updated_by: t.admin.clone(),
+    }
+    .to_xdr(&t.env, &t.contract.address);
+
+    assert_eq!(
+        events.events().last(),
+        Some(&expected),
+        "update_fee_rate must emit ParameterUpdated"
+    );
+}
+
+#[test]
+fn update_max_discount_emits_parameter_updated_event() {
+    let t = setup();
+
+    t.contract.update_max_discount(&4_500);
+
+    let events = t.env.events().all().filter_by_contract(&t.contract.address);
+    let expected = ParameterUpdated {
+        param_name: Symbol::new(&t.env, "max_discount_rate_bps"),
+        old_value: 5_000,
+        new_value: 4_500,
+        updated_by: t.admin.clone(),
+    }
+    .to_xdr(&t.env, &t.contract.address);
+
+    assert_eq!(
+        events.events().last(),
+        Some(&expected),
+        "update_max_discount must emit ParameterUpdated"
+    );
+}
+
+#[test]
+fn update_config_emits_parameter_updated_events_for_reputation_settings() {
+    let t = setup();
+    let xlm_sac_address = Address::generate(&t.env);
+
+    t.contract.update_config(
+        &t.admin,
+        &82,
+        &250,
+        &120,
+        &75,
+        &12_000,
+        &24_000,
+        &xlm_sac_address,
+    );
+
+    let events = t.env.events().all().filter_by_contract(&t.contract.address);
+    let expected = [
+        ParameterUpdated {
+            param_name: Symbol::new(&t.env, "high_rep_threshold"),
+            old_value: 70,
+            new_value: 82,
+            updated_by: t.admin.clone(),
+        }
+        .to_xdr(&t.env, &t.contract.address),
+        ParameterUpdated {
+            param_name: Symbol::new(&t.env, "bonus_bps"),
+            old_value: 100,
+            new_value: 250,
+            updated_by: t.admin.clone(),
+        }
+        .to_xdr(&t.env, &t.contract.address),
+        ParameterUpdated {
+            param_name: Symbol::new(&t.env, "min_discount_rate_bps"),
+            old_value: 100,
+            new_value: 120,
+            updated_by: t.admin.clone(),
+        }
+        .to_xdr(&t.env, &t.contract.address),
+        ParameterUpdated {
+            param_name: Symbol::new(&t.env, "decay_rate_bps"),
+            old_value: 50,
+            new_value: 75,
+            updated_by: t.admin.clone(),
+        }
+        .to_xdr(&t.env, &t.contract.address),
+        ParameterUpdated {
+            param_name: Symbol::new(&t.env, "decay_period_ledgers"),
+            old_value: 10_000,
+            new_value: 12_000,
+            updated_by: t.admin.clone(),
+        }
+        .to_xdr(&t.env, &t.contract.address),
+        ParameterUpdated {
+            param_name: Symbol::new(&t.env, "dispute_timeout_ledgers"),
+            old_value: 10_000,
+            new_value: 24_000,
+            updated_by: t.admin.clone(),
+        }
+        .to_xdr(&t.env, &t.contract.address),
+    ];
+
+    assert_eq!(events.events().len(), expected.len());
+    for (idx, expected_event) in expected.iter().enumerate() {
+        assert_eq!(
+            events.events().get(idx),
+            Some(expected_event),
+            "unexpected ParameterUpdated event at index {idx}"
+        );
+    }
 }

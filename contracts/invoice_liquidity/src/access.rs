@@ -1,6 +1,6 @@
-use soroban_sdk::{Address, Env};
-use crate::invoice::{load_invoice, invoice_exists, get_invoice_funders, StorageKey};
 use crate::errors::ContractError;
+use crate::invoice::{get_invoice_funders, invoice_exists, load_invoice, StorageKey};
+use soroban_sdk::{Address, Env};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Role {
@@ -22,12 +22,16 @@ pub fn require_admin(env: &Env) -> Result<(), ContractError> {
     Ok(())
 }
 
-pub fn require_submitter(env: &Env, caller: &Address) -> Result<(), ContractError> {
+pub fn require_submitter(_env: &Env, caller: &Address) -> Result<(), ContractError> {
     caller.require_auth();
     Ok(())
 }
 
-pub fn require_submitter_by_id(env: &Env, caller: &Address, invoice_id: u64) -> Result<(), ContractError> {
+pub fn require_submitter_by_id(
+    env: &Env,
+    caller: &Address,
+    invoice_id: u64,
+) -> Result<(), ContractError> {
     if !invoice_exists(env, invoice_id) {
         return Err(ContractError::InvoiceNotFound);
     }
@@ -48,7 +52,7 @@ pub fn require_payer_by_id(env: &Env, invoice_id: u64) -> Result<(), ContractErr
     Ok(())
 }
 
-pub fn require_lp(env: &Env, caller: &Address) -> Result<(), ContractError> {
+pub fn require_lp(_env: &Env, caller: &Address) -> Result<(), ContractError> {
     caller.require_auth();
     Ok(())
 }
@@ -58,7 +62,7 @@ pub fn require_lp_by_id(env: &Env, caller: &Address, invoice_id: u64) -> Result<
         return Err(ContractError::InvoiceNotFound);
     }
     caller.require_auth();
-    
+
     let funders = get_invoice_funders(env, invoice_id);
     let mut is_funder = false;
     for i in 0..funders.len() {

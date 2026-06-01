@@ -1,6 +1,22 @@
-use soroban_sdk::{contractevent, Address, BytesN};
+use soroban_sdk::{contractevent, Address, BytesN, Symbol};
 
 use crate::invoice::InvoiceStatus;
+
+/// Emitted when governance adds a token to the funding allowlist (Issue #19).
+#[contractevent(topics = ["token_added"])]
+#[derive(Clone, Debug, PartialEq)]
+pub struct TokenAdded {
+    #[topic]
+    pub token: Address,
+}
+
+/// Emitted when governance removes a token from the funding allowlist (Issue #19).
+#[contractevent(topics = ["token_removed"])]
+#[derive(Clone, Debug, PartialEq)]
+pub struct TokenRemoved {
+    #[topic]
+    pub token: Address,
+}
 
 #[contractevent(topics = ["submitted"])]
 #[derive(Clone, Debug, PartialEq)]
@@ -15,6 +31,7 @@ pub struct InvoiceSubmitted {
     pub amount: i128,
     pub due_date: u64,
     pub discount_rate: u32,
+    pub referral_code: Option<BytesN<32>>,
     pub status: InvoiceStatus,
     /// Ledger timestamp when the invoice was submitted.  Included so indexers
     /// can reconstruct the full invoice record from events alone.
@@ -159,6 +176,16 @@ pub struct InvoiceCancelled {
     pub status: InvoiceStatus,
 }
 
+#[contractevent(topics = ["lp_position_transferred"])]
+#[derive(Clone, Debug, PartialEq)]
+pub struct LPPositionTransferred {
+    #[topic]
+    pub invoice_id: u64,
+    pub old_lp: Address,
+    pub new_lp: Address,
+    pub status: InvoiceStatus,
+}
+
 /// Emitted whenever the contract admin address is updated.
 /// Provides a permanent on-chain audit trail for admin transitions.
 #[contractevent(topics = ["admin_changed"])]
@@ -170,7 +197,20 @@ pub struct AdminChanged {
     pub timestamp: u64,
 }
 
-
+/// Emitted whenever a governance-controlled numeric parameter changes.
+///
+/// The `param_name` topic is a stable audit identifier. Keep these strings
+/// unique per parameter so off-chain indexers can reconstruct config history.
+#[contractevent(topics = ["parameter_updated"])]
+#[derive(Clone, Debug, PartialEq)]
+pub struct ParameterUpdated {
+    #[topic]
+    pub param_name: Symbol,
+    pub old_value: i128,
+    pub new_value: i128,
+    #[topic]
+    pub updated_by: Address,
+}
 
 #[contractevent(topics = ["upgraded"])]
 #[derive(Clone, Debug, PartialEq)]
@@ -232,7 +272,7 @@ pub struct DisputeResolved {
     pub invoice_id: u64,
     #[topic]
     pub resolution_hash: BytesN<32>, // Optional hash of resolution details
-    pub resolution: u32,             // Ruling: 1 = Upheld (Payer right), 2 = Rejected (Freelancer right)
+    pub resolution: u32, // Ruling: 1 = Upheld (Payer right), 2 = Rejected (Freelancer right)
     pub resolved_at: u64,
 }
 
@@ -260,4 +300,35 @@ pub struct FundQueueResolved {
     pub approved_lp: Address,
     /// Winning score that secured priority.
     pub score: u32,
+}
+
+#[contractevent(topics = ["expired"])]
+#[derive(Clone, Debug, PartialEq)]
+pub struct InvoiceExpired {
+    #[topic]
+    pub invoice_id: u64,
+    pub freelancer: Address,
+    pub status: InvoiceStatus,
+}
+
+/// Emitted when an address's reputation score or counters are updated (Issue #32).
+#[contractevent(topics = ["reputation_updated"])]
+#[derive(Clone, Debug, PartialEq)]
+pub struct ReputationUpdated {
+    #[topic]
+    pub address: Address,
+    pub old_score: u32,
+    pub new_score: u32,
+    pub invoices_submitted: u32,
+    pub invoices_paid: u32,
+    pub invoices_defaulted: u32,
+}
+
+#[contractevent(topics = ["token_changed"])]
+#[derive(Clone, Debug, PartialEq)]
+pub struct InvoiceTokenChanged {
+    #[topic]
+    pub invoice_id: u64,
+    pub old_token: Address,
+    pub new_token: Address,
 }
