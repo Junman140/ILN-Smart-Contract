@@ -476,7 +476,7 @@ fn test_update_funded_invoice_fails() {
     let id = submit_standard_invoice(&t);
     let updated_due_date = t.env.ledger().timestamp() + DUE_DATE_OFFSET * 2;
 
-    t.contract.fund_invoice(&t.funder, &id, &INVOICE_AMOUNT);
+    t.contract.fund_invoice(&t.funder, &id, &INVOICE_AMOUNT, &false);
 
     let result = t.contract.try_update_invoice(
         &t.freelancer,
@@ -563,7 +563,7 @@ fn test_transfer_funded_invoice_fails() {
     let t = setup();
     let id = submit_standard_invoice(&t);
 
-    t.contract.fund_invoice(&t.funder, &id, &INVOICE_AMOUNT);
+    t.contract.fund_invoice(&t.funder, &id, &INVOICE_AMOUNT, &false);
 
     let new_freelancer = Address::generate(&t.env);
     let result = t.contract.try_transfer_invoice(&id, &new_freelancer);
@@ -643,7 +643,7 @@ fn test_fund_invoice_transfers_correct_amounts() {
     let funder_balance_before = t.token.balance(&t.funder);
     let freelancer_balance_before = t.token.balance(&t.freelancer);
 
-    t.contract.fund_invoice(&t.funder, &id, &INVOICE_AMOUNT);
+    t.contract.fund_invoice(&t.funder, &id, &INVOICE_AMOUNT, &false);
 
     let funder_balance_after = t.token.balance(&t.funder);
     let freelancer_balance_after = t.token.balance(&t.freelancer);
@@ -672,7 +672,7 @@ fn test_fund_invoice_updates_status_to_funded() {
     let t = setup();
     let id = submit_standard_invoice(&t);
 
-    t.contract.fund_invoice(&t.funder, &id, &INVOICE_AMOUNT);
+    t.contract.fund_invoice(&t.funder, &id, &INVOICE_AMOUNT, &false);
 
     let invoice = t.contract.get_invoice(&id);
 
@@ -687,7 +687,7 @@ fn test_fund_invoice_sets_funded_at_timestamp() {
     let id = submit_standard_invoice(&t);
     let now = t.env.ledger().timestamp();
 
-    t.contract.fund_invoice(&t.funder, &id, &INVOICE_AMOUNT);
+    t.contract.fund_invoice(&t.funder, &id, &INVOICE_AMOUNT, &false);
 
     let invoice = t.contract.get_invoice(&id);
     assert_eq!(invoice.funded_at, Some(now.try_into().expect("timestamp")));
@@ -712,7 +712,7 @@ fn test_fund_already_funded_invoice_fails() {
     let t = setup();
     let id = submit_standard_invoice(&t);
 
-    t.contract.fund_invoice(&t.funder, &id, &INVOICE_AMOUNT);
+    t.contract.fund_invoice(&t.funder, &id, &INVOICE_AMOUNT, &false);
 
     // Second funder tries to fund the same invoice
     let second_funder = Address::generate(&t.env);
@@ -732,7 +732,7 @@ fn test_mark_paid_releases_full_amount_to_lp() {
     let t = setup();
     let id = submit_standard_invoice(&t);
 
-    t.contract.fund_invoice(&t.funder, &id, &INVOICE_AMOUNT);
+    t.contract.fund_invoice(&t.funder, &id, &INVOICE_AMOUNT, &false);
 
     let funder_balance_before = t.token.balance(&t.funder);
 
@@ -753,7 +753,7 @@ fn test_mark_paid_updates_status() {
     let t = setup();
     let id = submit_standard_invoice(&t);
 
-    t.contract.fund_invoice(&t.funder, &id, &INVOICE_AMOUNT);
+    t.contract.fund_invoice(&t.funder, &id, &INVOICE_AMOUNT, &false);
     t.contract.mark_paid(&id, &INVOICE_AMOUNT);
 
     let invoice = t.contract.get_invoice(&id);
@@ -769,7 +769,7 @@ fn test_full_lifecycle_lp_earns_correct_yield() {
     let lp_start = t.token.balance(&t.funder);
 
     // LP funds the invoice
-    t.contract.fund_invoice(&t.funder, &id, &INVOICE_AMOUNT);
+    t.contract.fund_invoice(&t.funder, &id, &INVOICE_AMOUNT, &false);
 
     // Payer settles
     t.contract.mark_paid(&id, &INVOICE_AMOUNT);
@@ -792,7 +792,7 @@ fn test_full_lifecycle_payer_balance_reduces_correctly() {
 
     let payer_start = t.token.balance(&t.payer);
 
-    t.contract.fund_invoice(&t.funder, &id, &INVOICE_AMOUNT);
+    t.contract.fund_invoice(&t.funder, &id, &INVOICE_AMOUNT, &false);
     t.contract.mark_paid(&id, &INVOICE_AMOUNT);
 
     let payer_end = t.token.balance(&t.payer);
@@ -824,7 +824,7 @@ fn test_mark_paid_twice_fails() {
     let t = setup();
     let id = submit_standard_invoice(&t);
 
-    t.contract.fund_invoice(&t.funder, &id, &INVOICE_AMOUNT);
+    t.contract.fund_invoice(&t.funder, &id, &INVOICE_AMOUNT, &false);
     t.contract.mark_paid(&id, &INVOICE_AMOUNT);
 
     // Paying again should fail
@@ -845,7 +845,7 @@ fn test_claim_default_success() {
     let t = setup();
     let id = submit_standard_invoice(&t);
 
-    t.contract.fund_invoice(&t.funder, &id, &INVOICE_AMOUNT);
+    t.contract.fund_invoice(&t.funder, &id, &INVOICE_AMOUNT, &false);
 
     // Move time forward past due date
     let mut ledger = t.env.ledger().get();
@@ -875,7 +875,7 @@ fn test_claim_default_before_due_date_fails() {
     let t = setup();
     let id = submit_standard_invoice(&t);
 
-    t.contract.fund_invoice(&t.funder, &id, &INVOICE_AMOUNT);
+    t.contract.fund_invoice(&t.funder, &id, &INVOICE_AMOUNT, &false);
 
     let result = t.contract.try_claim_default(&t.funder, &id);
     assert_eq!(result, Err(Ok(ContractError::NotYetDefaulted)));
@@ -886,7 +886,7 @@ fn test_claim_default_non_funder_fails() {
     let t = setup();
     let id = submit_standard_invoice(&t);
 
-    t.contract.fund_invoice(&t.funder, &id, &INVOICE_AMOUNT);
+    t.contract.fund_invoice(&t.funder, &id, &INVOICE_AMOUNT, &false);
 
     // Move time forward
     let mut ledger = t.env.ledger().get();
@@ -904,7 +904,7 @@ fn test_claim_default_on_paid_invoice_fails() {
     let t = setup();
     let id = submit_standard_invoice(&t);
 
-    t.contract.fund_invoice(&t.funder, &id, &INVOICE_AMOUNT);
+    t.contract.fund_invoice(&t.funder, &id, &INVOICE_AMOUNT, &false);
     t.contract.mark_paid(&id, &INVOICE_AMOUNT);
 
     // Move time forward
@@ -921,7 +921,7 @@ fn test_claim_default_twice_fails() {
     let t = setup();
     let id = submit_standard_invoice(&t);
 
-    t.contract.fund_invoice(&t.funder, &id, &INVOICE_AMOUNT);
+    t.contract.fund_invoice(&t.funder, &id, &INVOICE_AMOUNT, &false);
 
     // Move time forward
     let mut ledger = t.env.ledger().get();
@@ -993,7 +993,7 @@ fn test_perfect_payer_score() {
     let t = setup();
     let id = submit_standard_invoice(&t);
 
-    t.contract.fund_invoice(&t.funder, &id, &INVOICE_AMOUNT);
+    t.contract.fund_invoice(&t.funder, &id, &INVOICE_AMOUNT, &false);
     t.contract.mark_paid(&id, &INVOICE_AMOUNT);
 
     let score = t.contract.payer_score(&t.payer);
@@ -1006,7 +1006,7 @@ fn test_payer_with_default() {
     let t = setup();
     let id = submit_standard_invoice(&t);
 
-    t.contract.fund_invoice(&t.funder, &id, &INVOICE_AMOUNT);
+    t.contract.fund_invoice(&t.funder, &id, &INVOICE_AMOUNT, &false);
 
     let mut ledger = t.env.ledger().get();
     ledger.timestamp += DUE_DATE_OFFSET + 1;

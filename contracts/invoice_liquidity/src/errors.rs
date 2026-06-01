@@ -47,4 +47,10 @@ pub enum ContractError {
     /// Token charges a fee during `transfer`, causing the received amount to differ
     /// from the amount sent and breaking ILN accounting.
     FeeOnTransferToken = 33,
+    /// Issue #92: oracle returned unverified for the invoice payer when
+    /// require_oracle_verification was set to true.
+    PayerUnverified = 33,
+    /// Issue #93: oracle data is older than max_oracle_age_ledgers and must
+    /// be rejected to prevent stale-data attacks.
+    OracleDataStale = 34,
 }

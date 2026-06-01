@@ -26,6 +26,8 @@ mod tests_pagination;
 mod tests_regression;
 mod tests_xlm_support;
 #[cfg(test)]
+mod tests_error_cases;
+#[cfg(test)]
 mod tests_stress;
 #[cfg(test)]
 mod tests_lifecycle_integration;
@@ -74,6 +76,29 @@ const MIN_INVOICE_DURATION: u64 = 24 * 60 * 60;
 
 /// Maximum invoice duration: 365 days (in seconds)
 const MAX_INVOICE_DURATION: u64 = 365 * 24 * 60 * 60;
+
+/// Default oracle freshness window: ~24 hours at one ledger per 5 seconds.
+/// Governance can override this per-contract via set_max_oracle_age().
+pub const DEFAULT_MAX_ORACLE_AGE_LEDGERS: u64 = 17_280;
+
+// ----------------------------------------------------------------
+// ORACLE TYPES (Issue #93)
+// ----------------------------------------------------------------
+
+use soroban_sdk::contracttype;
+
+/// Response returned by the oracle's get_payer_data() entry point.
+/// Combines identity verification with a freshness timestamp so the
+/// contract can reject stale data without a second round-trip.
+#[contracttype]
+#[derive(Clone, Debug)]
+pub struct OracleVerificationResponse {
+    /// Whether the payer has passed oracle identity/creditworthiness checks.
+    pub is_verified: bool,
+    /// Ledger sequence number at which this data was last updated by the oracle.
+    /// fund_invoice() rejects responses where current_ledger - timestamp ≥ max_oracle_age_ledgers.
+    pub timestamp: u32,
+}
 
 // ----------------------------------------------------------------
 // CONTRACT
@@ -132,6 +157,7 @@ impl InvoiceLiquidityContract {
             usdc_sac_address: usdc_token.clone(),
             eurc_sac_address: eurc_token.clone(),
             price_oracle: None,
+            max_oracle_age_ledgers: DEFAULT_MAX_ORACLE_AGE_LEDGERS,
         };
         crate::storage::set_config(&env, &initial_config);
 
@@ -245,6 +271,27 @@ impl InvoiceLiquidityContract {
     /// Access: Anyone
     pub fn get_price_oracle(env: Env) -> Option<Address> {
         crate::storage::get_config(&env).and_then(|config| config.price_oracle)
+    }
+
+    /// Update the maximum oracle data age in ledgers. Admin / governance only.
+    ///
+    /// Setting this to 0 disables the freshness check entirely (not recommended
+    /// for production — stale data is as dangerous as no oracle).
+    /// Access: Admin only
+    pub fn set_max_oracle_age(env: Env, max_age_ledgers: u64) -> Result<(), ContractError> {
+        require_admin(&env)?;
+        let admin = get_admin(&env).ok_or(ContractError::Unauthorized)?;
+        crate::config::set_max_oracle_age(&env, &admin, max_age_ledgers)
+            .map_err(|_| ContractError::Unauthorized)?;
+        Ok(())
+    }
+
+    /// Return the configured maximum oracle data age in ledgers.
+    /// Access: Anyone
+    pub fn get_max_oracle_age(env: Env) -> u64 {
+        crate::storage::get_config(&env)
+            .map(|c| c.max_oracle_age_ledgers)
+            .unwrap_or(DEFAULT_MAX_ORACLE_AGE_LEDGERS)
     }
 
     /// Access: Admin only
@@ -850,11 +897,18 @@ impl InvoiceLiquidityContract {
     // fund_invoice (USES invoice.token) — now queue-aware
     // ------------------------------------------------------------
     /// Access: LP only
+    ///
+    /// `require_oracle_verification` — when `true`, the oracle stored in
+    /// contract config is queried for the payer's verification status.
+    /// If the oracle returns `false` (unverified), the call returns
+    /// `ContractError::PayerUnverified`. When `false`, the oracle is not
+    /// consulted and the existing behaviour is preserved.
     pub fn fund_invoice(
         env: Env,
         funder: Address,
         invoice_id: u64,
         fund_amount: i128,
+        require_oracle_verification: bool,
     ) -> Result<(), ContractError> {
         if is_paused(&env) {
             return Err(ContractError::ContractPaused);
@@ -886,6 +940,40 @@ impl InvoiceLiquidityContract {
         if min_payer_reputation > 0 && get_payer_score(&env, &invoice.payer) < min_payer_reputation
         {
             return Err(ContractError::PayerReputationTooLow);
+        }
+
+        // Issues #92 + #93: optional oracle verification with data-freshness guard.
+        // When require_oracle_verification is true, the oracle stored in config is
+        // called. If no oracle is configured the flag is a no-op.
+        if require_oracle_verification {
+            if let Some(oracle_addr) =
+                crate::storage::get_config(&env).and_then(|c| c.price_oracle)
+            {
+                let response: OracleVerificationResponse = env.invoke_contract(
+                    &oracle_addr,
+                    &Symbol::new(&env, "get_payer_data"),
+                    vec![&env, invoice.payer.clone().into_val(&env)],
+                );
+
+                // Issue #93: reject stale oracle data.
+                // Staleness = current_ledger_sequence - oracle.timestamp >= max_oracle_age_ledgers.
+                // If max_oracle_age_ledgers == 0 the check is disabled (governance escape hatch).
+                let max_age = crate::storage::get_config(&env)
+                    .map(|c| c.max_oracle_age_ledgers)
+                    .unwrap_or(DEFAULT_MAX_ORACLE_AGE_LEDGERS);
+                if max_age > 0 {
+                    let current_ledger = env.ledger().sequence() as u64;
+                    let age = current_ledger.saturating_sub(response.timestamp as u64);
+                    if age >= max_age {
+                        return Err(ContractError::OracleDataStale);
+                    }
+                }
+
+                // Issue #92: reject unverified payers.
+                if !response.is_verified {
+                    return Err(ContractError::PayerUnverified);
+                }
+            }
         }
 
         if invoice.status == InvoiceStatus::Pending
@@ -2168,6 +2256,9 @@ mod tests_lazy_storage;
 #[cfg(test)]
 mod tests_reputation_events;
 #[cfg(test)]
+mod tests_oracle_verification;
+#[cfg(test)]
+mod tests_oracle_freshness;
 mod tests_discount_invariants;
 #[cfg(test)]
 mod tests_token_switch;
