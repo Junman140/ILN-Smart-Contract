@@ -101,7 +101,7 @@ fn test_scenario_1_double_funding_attempt() {
     );
 
     // LP 1 funds => success
-    t.contract.fund_invoice(&t.lp1, &id, &amount);
+    t.contract.fund_invoice(&t.lp1, &id, &amount, &false);
 
     // LP 2 attempts to fund => AlreadyFunded
     let result = t.contract.try_fund_invoice(&t.lp2, &id, &amount);
@@ -216,7 +216,7 @@ fn test_scenario_4_rapid_state_reads() {
     assert_eq!(inv_1a.status, inv_1b.status);
 
     // Execute Funding
-    t.contract.fund_invoice(&t.lp1, &id, &amount);
+    t.contract.fund_invoice(&t.lp1, &id, &amount, &false);
 
     // State 2 Reads (Simulating rapid polls immediately post-execution)
     let inv_2a = t.contract.get_invoice(&id);
@@ -252,7 +252,7 @@ fn test_scenario_5_fund_mark_paid_fund_again() {
     );
 
     // First funding succeeds
-    t.contract.fund_invoice(&t.lp1, &id, &amount);
+    t.contract.fund_invoice(&t.lp1, &id, &amount, &false);
 
     // Invoice is settled by payer
     t.contract.mark_paid(&id, &INVOICE_AMOUNT);

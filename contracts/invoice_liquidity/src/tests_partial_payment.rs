@@ -78,7 +78,7 @@ fn test_partial_then_full_payment() {
         &t.token.address,
     );
 
-    t.contract.fund_invoice(&t.funder, &id, &INVOICE_AMOUNT);
+    t.contract.fund_invoice(&t.funder, &id, &INVOICE_AMOUNT, &false);
 
     let partial_amount = 4_000_000;
 
@@ -120,7 +120,7 @@ fn test_overpayment_guard() {
         &t.token.address,
     );
 
-    t.contract.fund_invoice(&t.funder, &id, &INVOICE_AMOUNT);
+    t.contract.fund_invoice(&t.funder, &id, &INVOICE_AMOUNT, &false);
 
     let over_amount = INVOICE_AMOUNT + 1_000;
 
@@ -148,7 +148,7 @@ fn test_invalid_amount() {
         &t.token.address,
     );
 
-    t.contract.fund_invoice(&t.funder, &id, &INVOICE_AMOUNT);
+    t.contract.fund_invoice(&t.funder, &id, &INVOICE_AMOUNT, &false);
 
     let result = t.contract.try_mark_paid(&id, &0);
     assert_eq!(result, Err(Ok(ContractError::InvalidAmount)));
