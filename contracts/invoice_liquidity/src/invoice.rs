@@ -40,6 +40,12 @@ pub struct Invoice {
     pub amount_paid: i128,       // cumulative amount paid by the payer
     pub referral_code: Option<BytesN<32>>, // optional referral code used at submission
     pub submitter_reputation: u32, // snapshot of freelancer's reputation at submission time
+    // Dutch auction fields
+    pub is_auction: bool,    // whether this invoice uses Dutch auction pricing
+    pub auction_start_rate: Option<u32>, // starting rate in basis points
+    pub auction_min_rate: Option<u32>,   // minimum rate in basis points
+    pub auction_rate_decay_per_hour: Option<u32>, // decay in basis points per hour
+    pub auction_started_at: Option<u32>, // timestamp when auction was started
     /// Issue #122: Optional whitelist of LP addresses allowed to fund this invoice.
     /// If empty/None, invoice is public. If Some, only whitelisted LPs can fund.
     /// Capped at 10 addresses to limit storage.
