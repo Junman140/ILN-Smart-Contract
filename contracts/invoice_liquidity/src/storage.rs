@@ -1,7 +1,7 @@
-use soroban_sdk::{contracttype, Address, Env};
+use soroban_sdk::{contracttype, Address, Env, BytesN};
 
 use crate::config::Config;
-use crate::invoice::{AppealRecord, ContractStats, Invoice, LpFundRequest, ReputationScore};
+use crate::invoice::{AppealRecord, Invoice, LpFundRequest, ReputationScore};
 
 #[contracttype]
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -15,8 +15,7 @@ pub enum DataKey {
     Paused,
     /// Minimum payer reputation required to fund an invoice (Issue #28). Default 0.
     MinPayerReputation,
-    /// Reentrancy guard lock flag
-    ReentrancyLock,
+    NextInvoiceId,
 
     // Persistent Storage
     Invoice(u64),
@@ -44,9 +43,13 @@ pub enum DataKey {
     TotalVolumeEurc,
     TotalVolumeXlm,
     TokenVolume(Address),
+    /// Referral counts keyed by fixed-size code
+    ReferralCount(BytesN<32>),
     Dispute(u64),
     SubmitterInvoices(Address),
     LpInvoices(Address),
+    /// Fixed-size min-heap of the top payers by reputation score (Issue #77).
+    TopPayersHeap,
 }
 
 // ----------------------------------------------------------------
@@ -103,20 +106,26 @@ pub fn invoice_exists(env: &Env, id: u64) -> bool {
     env.storage().persistent().has(&DataKey::Invoice(id))
 }
 
-pub fn next_invoice_id(env: &Env) -> u64 {
-    let current: u64 = env
-        .storage()
-        .persistent()
-        .get(&DataKey::InvoiceCount)
-        .unwrap_or(0);
-
-    let next = current + 1;
-
+pub fn read_next_invoice_id(env: &Env) -> u64 {
     env.storage()
-        .persistent()
-        .set(&DataKey::InvoiceCount, &next);
+        .instance()
+        .get(&DataKey::NextInvoiceId)
+        .unwrap_or(1)
+}
 
-    next
+pub fn write_next_invoice_id(env: &Env, id: u64) {
+    env.storage().instance().set(&DataKey::NextInvoiceId, &id);
+}
+
+pub fn next_invoice_id(env: &Env) -> Result<u64, crate::errors::ContractError> {
+    let current_id = read_next_invoice_id(env);
+    let next_id = current_id
+        .checked_add(1)
+        .ok_or(crate::errors::ContractError::ArithmeticOverflow)?;
+
+    write_next_invoice_id(env, next_id);
+
+    Ok(current_id)
 }
 
 // ----------------------------------------------------------------
@@ -259,41 +268,6 @@ pub fn get_pre_default_payer_score(env: &Env, invoice_id: u64) -> Option<u32> {
 // Contract Stats Helpers
 // ----------------------------------------------------------------
 
-pub fn get_contract_stats(env: &Env) -> ContractStats {
-    ContractStats {
-        total_invoices: env
-            .storage()
-            .persistent()
-            .get(&DataKey::TotalInvoices)
-            .unwrap_or(0),
-        total_funded: env
-            .storage()
-            .persistent()
-            .get(&DataKey::TotalFunded)
-            .unwrap_or(0),
-        total_paid: env
-            .storage()
-            .persistent()
-            .get(&DataKey::TotalPaid)
-            .unwrap_or(0),
-        total_volume_usdc: env
-            .storage()
-            .persistent()
-            .get(&DataKey::TotalVolumeUsdc)
-            .unwrap_or(0),
-        total_volume_eurc: env
-            .storage()
-            .persistent()
-            .get(&DataKey::TotalVolumeEurc)
-            .unwrap_or(0),
-        total_volume_xlm: env
-            .storage()
-            .persistent()
-            .get(&DataKey::TotalVolumeXlm)
-            .unwrap_or(0),
-    }
-}
-
 pub fn increment_total_invoices(env: &Env) {
     let current: u64 = env
         .storage()
@@ -327,70 +301,4 @@ pub fn increment_total_paid(env: &Env) {
         .set(&DataKey::TotalPaid, &(current + 1));
 }
 
-pub fn add_volume(
-    env: &Env,
-    token: &Address,
-    amount: i128,
-    usdc_addr: &Address,
-    eurc_addr: &Address,
-    xlm_addr: &Address,
-) {
-    if token == usdc_addr {
-        let current: i128 = env
-            .storage()
-            .persistent()
-            .get(&DataKey::TotalVolumeUsdc)
-            .unwrap_or(0);
-        env.storage()
-            .persistent()
-            .set(&DataKey::TotalVolumeUsdc, &(current + amount));
-    } else if token == eurc_addr {
-        let current: i128 = env
-            .storage()
-            .persistent()
-            .get(&DataKey::TotalVolumeEurc)
-            .unwrap_or(0);
-        env.storage()
-            .persistent()
-            .set(&DataKey::TotalVolumeEurc, &(current + amount));
-    } else if token == xlm_addr {
-        let current: i128 = env
-            .storage()
-            .persistent()
-            .get(&DataKey::TotalVolumeXlm)
-            .unwrap_or(0);
-        env.storage()
-            .persistent()
-            .set(&DataKey::TotalVolumeXlm, &(current + amount));
-    }
-}
-
-// ----------------------------------------------------------------
-// Reentrancy Guard
-// ----------------------------------------------------------------
-
-use crate::errors::ContractError;
-
-/// Calls the provided closure with a reentrancy lock set in instance storage.
-/// Returns Error::Reentrancy if already locked.
-pub fn with_reentrancy_guard<F, R>(env: &Env, f: F) -> Result<R, ContractError>
-where
-    F: FnOnce() -> Result<R, ContractError>,
-{
-    let locked: bool = env
-        .storage()
-        .instance()
-        .get(&DataKey::ReentrancyLock)
-        .unwrap_or(false);
-    if locked {
-        return Err(ContractError::Reentrancy);
-    }
-    env.storage()
-        .instance()
-        .set(&DataKey::ReentrancyLock, &true);
-    let result = f();
-    env.storage()
-        .instance()
-        .set(&DataKey::ReentrancyLock, &false);
-    result
-}
+// add_volume moved to invoice.rs where the configured token addresses are available

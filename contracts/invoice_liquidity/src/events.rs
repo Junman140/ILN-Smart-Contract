@@ -33,6 +33,7 @@ pub struct InvoiceSubmitted {
     pub amount: i128,
     pub due_date: u64,
     pub discount_rate: u32,
+    pub referral_code: Option<BytesN<32>>,
     pub status: InvoiceStatus,
     /// Ledger timestamp when the invoice was submitted.  Included so indexers
     /// can reconstruct the full invoice record from events alone.
@@ -177,6 +178,16 @@ pub struct InvoiceCancelled {
     pub status: InvoiceStatus,
 }
 
+#[contractevent(topics = ["lp_position_transferred"])]
+#[derive(Clone, Debug, PartialEq)]
+pub struct LPPositionTransferred {
+    #[topic]
+    pub invoice_id: u64,
+    pub old_lp: Address,
+    pub new_lp: Address,
+    pub status: InvoiceStatus,
+}
+
 /// Emitted whenever the contract admin address is updated.
 /// Provides a permanent on-chain audit trail for admin transitions.
 #[contractevent(topics = ["admin_changed"])]
@@ -291,4 +302,35 @@ pub struct FundQueueResolved {
     pub approved_lp: Address,
     /// Winning score that secured priority.
     pub score: u32,
+}
+
+#[contractevent(topics = ["expired"])]
+#[derive(Clone, Debug, PartialEq)]
+pub struct InvoiceExpired {
+    #[topic]
+    pub invoice_id: u64,
+    pub freelancer: Address,
+    pub status: InvoiceStatus,
+}
+
+/// Emitted when an address's reputation score or counters are updated (Issue #32).
+#[contractevent(topics = ["reputation_updated"])]
+#[derive(Clone, Debug, PartialEq)]
+pub struct ReputationUpdated {
+    #[topic]
+    pub address: Address,
+    pub old_score: u32,
+    pub new_score: u32,
+    pub invoices_submitted: u32,
+    pub invoices_paid: u32,
+    pub invoices_defaulted: u32,
+}
+
+#[contractevent(topics = ["token_changed"])]
+#[derive(Clone, Debug, PartialEq)]
+pub struct InvoiceTokenChanged {
+    #[topic]
+    pub invoice_id: u64,
+    pub old_token: Address,
+    pub new_token: Address,
 }
