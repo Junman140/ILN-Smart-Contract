@@ -121,7 +121,7 @@ fn add_token_then_fund_succeeds() {
     let t = setup();
     let new_token = register_mock_token(&t.env);
     new_token.admin_client.mint(&t.lp, &100_000_000_000);
-    t.contract.add_token(&new_token.address);
+    t.contract.add_token(&new_token.address, &6_u32); // generic 6-decimal token in governance test
 
     let id = submit(&t, &new_token.address);
     t.contract.fund_invoice(&t.lp, &id, &AMOUNT);
