@@ -17,6 +17,7 @@
     "build": "tsup",
     "test": "jest --coverage",
     "test:ci": "jest --coverage --ci",
+    "test:integration": "jest --config jest.integration.config.cjs",
     "docs": "typedoc --out docs src/index.ts"
   },
   "dependencies": {
@@ -42,6 +43,10 @@
     "moduleNameMapper": {
       "^(\\.{1,2}/.*)\\.js$": "$1"
     },
+    "testPathIgnorePatterns": [
+      "/node_modules/",
+      "/tests/integration/"
+    ],
     "collectCoverageFrom": [
       "src/**/*.ts",
       "!src/index.ts"
