@@ -429,14 +429,17 @@ pub fn set_reputation(env: &Env, profile: &ReputationProfile) {
         || old_profile.invoices_paid != profile.invoices_paid
         || old_profile.invoices_defaulted != profile.invoices_defaulted
     {
-        env.events().publish_event(&crate::events::ReputationUpdated {
-            address: profile.address.clone(),
-            old_score,
-            new_score,
-            invoices_submitted: profile.invoices_submitted,
-            invoices_paid: profile.invoices_paid,
-            invoices_defaulted: profile.invoices_defaulted,
-        });
+        env.events().publish(
+            (Symbol::new(env, "reputation_updated"), profile.address.clone()),
+            &crate::events::ReputationUpdated {
+                address: profile.address.clone(),
+                old_score,
+                new_score,
+                invoices_submitted: profile.invoices_submitted,
+                invoices_paid: profile.invoices_paid,
+                invoices_defaulted: profile.invoices_defaulted,
+            },
+        );
     }
 }
 
