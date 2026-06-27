@@ -12,6 +12,13 @@ export {
   buildApproveTransaction,
   isAllowanceSufficient,
 } from "./utils/allowance.js";
+export {
+  validateGAddress,
+  validateContractId,
+  validateAmount,
+  validateDiscountRate,
+  validateDueDate,
+} from "./utils/validate.js";
 export { KeypairSigner } from "./signers/KeypairSigner.js";
 export { FreighterSigner, ILNError, ILNErrorCode } from "./signers/FreighterSigner.js";
 export { subscribe, parseContractEvent, matchesFilter } from "./events/subscribe.js";
@@ -36,6 +43,23 @@ export type {
 
 export { getInvoice, listInvoicesBySubmitter, listInvoicesByLP } from "./methods/queries.js";
 export { submitInvoice } from "./methods/submitInvoice.js";
+export { transferLPPosition } from "./methods/transferLPPosition.js";
 export { cancelInvoice } from "./methods/cancelInvoice.js";
 export { markPaid } from "./methods/markPaid.js";
+export {
+  createProposal,
+  castVote,
+  executeProposal,
+  getProposal,
+  listProposals,
+} from "./methods/governance.js";
+export {
+  ProposalAction,
+  ProposalStatus,
+} from "./types/governance.js";
+export type {
+  Proposal,
+  ProposalFilter,
+  CreateProposalResult,
+} from "./types/governance.js";
 export { ILNError } from "./errors.js";

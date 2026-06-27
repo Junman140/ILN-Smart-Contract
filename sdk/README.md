@@ -172,6 +172,38 @@ try {
 }
 ```
 
+## Integration Tests (testnet)
+
+In addition to the mocked unit tests, the SDK ships an integration suite under
+`tests/integration/` that exercises the full invoice lifecycle (submit → fund →
+mark paid) against the **live Stellar testnet** deployment. This verifies that
+XDR encoding, contract addresses and signing flows work end-to-end against real
+Soroban.
+
+The suite requires two Friendbot-funded testnet keypairs, supplied via
+environment variables:
+
+| Variable                | Description                                          |
+| ----------------------- | ---------------------------------------------------- |
+| `TEST_SUBMITTER_SECRET` | Secret key (`S…`) used to submit and cancel invoices |
+| `TEST_LP_SECRET`        | Secret key (`S…`) used to fund invoices as the LP    |
+| `TEST_RPC_URL`          | Optional override for the Soroban RPC endpoint       |
+
+Both accounts are auto-funded via Friendbot at the start of the run. Generate
+keypairs with `Keypair.random()` (or the Stellar Laboratory) and export their
+secrets before running:
+
+```bash
+export TEST_SUBMITTER_SECRET="S..."
+export TEST_LP_SECRET="S..."
+npm run test:integration
+```
+
+When the secrets are absent the suite is skipped, so it never breaks the normal
+`npm test` run. The tests clean up after themselves by cancelling any invoice
+they leave in a `Pending` state. CI runs them nightly via
+`.github/workflows/sdk-integration.yml`.
+
 ## TypeScript Integration
 
 The SDK is written in TypeScript and exports all necessary types. You can import types like `Invoice`, `ReputationProfile`, `FundOptions`, and compose them into your own application's state or props.
