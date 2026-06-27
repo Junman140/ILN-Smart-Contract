@@ -13,6 +13,7 @@ import { makeSubmitCommand } from "./commands/submit.js";
 import { makeCancelCommand } from "./commands/cancel.js";
 import { makeMarketplaceCommand } from "./commands/marketplace.js";
 import { makeFundCommand } from "./commands/fund.js";
+import { makeStatusCommand } from "./commands/status.js";
 
 const program = new Command();
 
@@ -29,5 +30,6 @@ program.addCommand(makeSubmitCommand());
 program.addCommand(makeCancelCommand());
 program.addCommand(makeMarketplaceCommand());
 program.addCommand(makeFundCommand());
+program.addCommand(makeStatusCommand());
 
 program.parse(process.argv);
