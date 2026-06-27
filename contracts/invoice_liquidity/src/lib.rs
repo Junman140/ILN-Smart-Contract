@@ -314,10 +314,6 @@ impl InvoiceLiquidityContract {
 
     /// Access: Admin only
     pub fn add_token(env: Env, token: Address, decimals: u32) -> Result<(), ContractError> {
-    ///
-    /// Reject tokens that implement fee-on-transfer behavior by ensuring a small
-    /// token transfer to the contract results in the same amount being received.
-    pub fn add_token(env: Env, token: Address) -> Result<(), ContractError> {
         require_admin(&env)?;
 
         let token_client = token_client(&env, &token);

@@ -658,11 +658,18 @@ impl GovContract {
             return Ok(());
         }
 
-        if proposal.status == ProposalStatus::Passed {
-            let current_ledger = env.ledger().sequence();
-            if current_ledger < proposal.eta_ledger {
-                return Err(GovernanceError::TimelockNotExpired);
-            }
+            if proposal.status == ProposalStatus::Passed {
+                let current_ledger = env.ledger().sequence();
+                if current_ledger < proposal.eta_ledger {
+                    return Err(GovernanceError::TimelockNotExpired);
+                }
+
+                let iln_contract: Address = env
+                    .storage()
+                    .instance()
+                    .get(&StorageKey::IlnContract)
+                    .unwrap();
+
             ProposalAction::AddToken(token, decimals) => {
                 let args: Vec<soroban_sdk::Val> = vec![&env, token.into_val(&env), decimals.into_val(&env)];
                 env.invoke_contract::<()>(&iln_contract, &Symbol::new(&env, "add_token"), args);
