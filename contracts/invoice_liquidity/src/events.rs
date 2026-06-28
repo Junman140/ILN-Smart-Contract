@@ -1,6 +1,6 @@
 use soroban_sdk::{contracttype, Address, BytesN, Symbol};
 
-use crate::invoice::InvoiceStatus;
+use crate::invoice::{InvoiceStatus, ReferralCode};
 
 /// Emitted when governance adds a token to the funding allowlist (Issue #19).
 #[contracttype]
@@ -28,7 +28,7 @@ pub struct InvoiceSubmitted {
     pub amount: i128,
     pub due_date: u64,
     pub discount_rate: u32,
-    pub referral_code: Option<BytesN<32>>,
+    pub referral_code: ReferralCode,
     pub status: InvoiceStatus,
     /// Ledger timestamp when the invoice was submitted.  Included so indexers
     /// can reconstruct the full invoice record from events alone.

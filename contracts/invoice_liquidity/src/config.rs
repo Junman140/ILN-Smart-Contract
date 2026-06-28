@@ -77,7 +77,7 @@ pub fn update_config(
         let pn = Symbol::new(env, param_name);
         env.events().publish(
             (Symbol::new(env, "parameter_updated"), pn, caller.clone()),
-            &ParameterUpdated {
+            ParameterUpdated {
                 param_name: pn,
                 old_value,
                 new_value,

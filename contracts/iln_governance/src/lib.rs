@@ -334,7 +334,7 @@ impl GovContract {
 
         env.events().publish(
             (Symbol::new(&env, "proposal_created"), id, proposer.clone()),
-            &ProposalCreated {
+            ProposalCreated {
                 proposal_id: id,
                 proposer,
                 action_type,
@@ -432,7 +432,7 @@ impl GovContract {
 
         env.events().publish(
             (Symbol::new(&env, "votes_delegated"), delegator.clone(), delegate.clone()),
-            &VotesDelegated {
+            VotesDelegated {
                 delegator,
                 delegate,
             },
@@ -461,7 +461,7 @@ impl GovContract {
 
         env.events().publish(
             (Symbol::new(&env, "votes_undelegated"), delegator.clone()),
-            &VotesUndelegated { delegator },
+            VotesUndelegated { delegator },
         );
 
         Ok(())
@@ -551,7 +551,7 @@ impl GovContract {
 
         env.events().publish(
             (Symbol::new(&env, "vote_cast"), proposal_id, voter.clone()),
-            &VoteCast {
+            VoteCast {
                 proposal_id,
                 voter,
                 support,
@@ -710,7 +710,7 @@ impl GovContract {
 
             env.events().publish(
                 (Symbol::new(&env, "proposal_executed"), proposal_id),
-                &ProposalExecuted {
+                ProposalExecuted {
                     proposal_id,
                     action_type: proposal.action_type,
                     proposed_value: proposal.proposed_value,
@@ -779,7 +779,7 @@ impl GovContract {
 
         env.events().publish(
             (Symbol::new(&env, "proposal_vetoed"), proposal_id, admin.clone()),
-            &ProposalVetoed {
+            ProposalVetoed {
                 proposal_id,
                 admin,
                 reason_hash,
