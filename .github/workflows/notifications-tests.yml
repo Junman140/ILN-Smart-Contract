@@ -1,0 +1,31 @@
+name: notifications tests
+
+on:
+  pull_request:
+    paths:
+      - 'notifications/**'
+      - '.github/workflows/notifications-tests.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'notifications/**'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: notifications
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: npm install
+      - run: npm run test:coverage
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: notifications-coverage
+          path: notifications/coverage
