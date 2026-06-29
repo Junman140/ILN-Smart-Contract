@@ -10,6 +10,7 @@ import { DeliveryHistoryStore } from './delivery/deliveryHistory.js';
 import { createWebhooksRouter } from './api/webhooks.js';
 import { createSlackRouter } from './api/slack.js';
 import { createEmailSubscriptionsRouter } from './api/email.js';
+import { createEmailNotificationsRouter } from './api/emailNotifications.js';
 import type { SlackSubscription } from './api/slack.js';
 
 const db = createNotificationsDatabase(config.dbPath);
@@ -42,6 +43,12 @@ app.use(createWebhooksRouter(store, delivery, historyStore));
 app.use(createSlackRouter(slackStore));
 app.use(
   createEmailSubscriptionsRouter(emailStore, emailDelivery, {
+    tokenSecret: config.emailTokenSecret,
+    publicUrl: config.publicUrl,
+  })
+);
+app.use(
+  createEmailNotificationsRouter(emailStore, emailDelivery, {
     tokenSecret: config.emailTokenSecret,
     publicUrl: config.publicUrl,
   })

@@ -9,7 +9,9 @@ Webhook and email notification service for the Invoice Liquidity Network.
 - Per-endpoint sliding-window rate limiter (1000 deliveries / hour by default)
 - Subscription CRUD (`POST /webhooks`, `GET /webhooks/:id`, `DELETE /webhooks/:id`)
 - Email subscription registration with verification and signed unsubscribe links
-- Email delivery via Resend SDK adapter
+- Email delivery via the Resend SDK with invoice.funded, invoice.paid, invoice.expiring_soon, and invoice.disputed templates
+- `POST /notify/email` fan-out for active email subscriptions
+- 72-hour and 24-hour expiring-soon reminders derived from the invoice due date
 - Vitest unit tests with a 90% coverage threshold
 
 ## Local development
@@ -37,8 +39,9 @@ npm run test:coverage  # vitest with 90% threshold + lcov report
 - `POST /subscriptions/email` with `{ address, email, events }`
 - `GET /subscriptions/verify?token=...` to activate a pending subscription
 - `DELETE /subscriptions/email?token=...` to unsubscribe with the signed footer token
+- `POST /notify/email` with `{ type, invoiceId, token, amount, dueDate, freelancer?, payer?, funder?, invoiceUrl? }`
 
-The verification email includes the consent link plus a signed unsubscribe link in the footer for compliance.
+The verification and notification emails both include a signed unsubscribe link in the footer for compliance.
 
 ## Docker
 

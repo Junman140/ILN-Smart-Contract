@@ -65,10 +65,6 @@ function decodePayload(
   }
 
   const expected = createHmac('sha256', secret).update(body).digest('base64url');
-  if (expected.length !== signature.length) {
-    return null;
-  }
-
   const expectedBytes = Buffer.from(expected);
   const signatureBytes = Buffer.from(signature);
   if (expectedBytes.length !== signatureBytes.length) {
