@@ -1,4 +1,3 @@
-export { initializeSchema } from '../db/schema.js';
 import type Database from 'better-sqlite3';
 
 export function initializeSchema(db: Database.Database): void {
@@ -23,12 +22,19 @@ export function initializeSchema(db: Database.Database): void {
 
     CREATE TABLE IF NOT EXISTS events (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
-      invoice_id INTEGER NOT NULL,
+      invoice_id INTEGER,
       event_type TEXT NOT NULL,
       ledger INTEGER NOT NULL,
       timestamp INTEGER NOT NULL,
       data TEXT NOT NULL DEFAULT '{}',
-      FOREIGN KEY (invoice_id) REFERENCES invoices(id)
+      contract_id TEXT,
+      contract_event_type TEXT,
+      transaction_hash TEXT,
+      transaction_paging_token TEXT,
+      event_index INTEGER,
+      topics_json TEXT NOT NULL DEFAULT '[]',
+      FOREIGN KEY (invoice_id) REFERENCES invoices(id),
+      UNIQUE(transaction_hash, event_index)
     );
 
     CREATE TABLE IF NOT EXISTS reputation_updates (
@@ -41,7 +47,13 @@ export function initializeSchema(db: Database.Database): void {
       invoices_paid INTEGER NOT NULL DEFAULT 0,
       invoices_defaulted INTEGER NOT NULL DEFAULT 0,
       ledger INTEGER NOT NULL,
-      timestamp INTEGER NOT NULL
+      timestamp INTEGER NOT NULL,
+      contract_id TEXT,
+      transaction_hash TEXT,
+      transaction_paging_token TEXT,
+      event_index INTEGER,
+      topics_json TEXT NOT NULL DEFAULT '[]',
+      UNIQUE(transaction_hash, event_index)
     );
 
     CREATE TABLE IF NOT EXISTS stats_snapshots (
@@ -68,14 +80,20 @@ export function initializeSchema(db: Database.Database): void {
       avg_discount_rate_bps REAL NOT NULL DEFAULT 0
     );
 
+    CREATE TABLE IF NOT EXISTS indexer_state (
+      state_key TEXT PRIMARY KEY,
+      state_value TEXT NOT NULL
+    );
+
     CREATE INDEX IF NOT EXISTS idx_events_invoice_id ON events(invoice_id);
     CREATE INDEX IF NOT EXISTS idx_events_timestamp ON events(timestamp);
+    CREATE INDEX IF NOT EXISTS idx_events_contract_id ON events(contract_id);
+    CREATE INDEX IF NOT EXISTS idx_events_tx_hash ON events(transaction_hash);
     CREATE INDEX IF NOT EXISTS idx_reputation_address ON reputation_updates(address);
     CREATE INDEX IF NOT EXISTS idx_reputation_timestamp ON reputation_updates(timestamp);
+    CREATE INDEX IF NOT EXISTS idx_reputation_tx_hash ON reputation_updates(transaction_hash);
     CREATE INDEX IF NOT EXISTS idx_invoices_status ON invoices(status);
     CREATE INDEX IF NOT EXISTS idx_stats_history_date ON stats_history(date);
-    CREATE INDEX IF NOT EXISTS idx_invoices_freelancer ON invoices(freelancer);
-    CREATE INDEX IF NOT EXISTS idx_invoices_payer ON invoices(payer);
-    CREATE INDEX IF NOT EXISTS idx_invoices_funder ON invoices(funder);
+    CREATE INDEX IF NOT EXISTS idx_indexer_state_key ON indexer_state(state_key);
   `);
 }
