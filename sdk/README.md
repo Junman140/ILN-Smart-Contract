@@ -4,6 +4,11 @@ The official TypeScript SDK for the Invoice Liquidity Network (ILN) smart contra
 
 This SDK allows freelancers, liquidity providers, and integrators to interact seamlessly with the ILN protocol. It provides a typed, easy-to-use interface over the raw Soroban RPC calls.
 
+> 📘 **New to ILN?** The [SDK Integration Guide](../docs/sdk-integration.md)
+> walks through every flow — freelancer, LP, payer, governance, and analytics —
+> with complete, testnet-ready examples for both Node.js (keypair) and the
+> browser (Freighter).
+
 ## Installation
 
 ```bash
