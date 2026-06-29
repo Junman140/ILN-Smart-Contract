@@ -1,3 +1,4 @@
+import { describe, expect, it } from 'vitest';
 import request from 'supertest';
 import type Database from 'better-sqlite3';
 import { createApp } from '../src/app.js';

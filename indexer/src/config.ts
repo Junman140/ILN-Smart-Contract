@@ -5,6 +5,8 @@ export const config = {
   maxLeaderboardLimit: 100,
   defaultLeaderboardLimit: 50,
   apiKeys: parseCsv(process.env.API_KEYS),
+  horizonUrl: process.env.HORIZON_URL || 'http://localhost:8000',
+  contractId: process.env.ILN_CONTRACT_ID || process.env.CONTRACT_ID || '',
 };
 
 function parseCsv(value: string | undefined): string[] {
