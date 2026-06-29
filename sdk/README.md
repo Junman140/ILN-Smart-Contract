@@ -9,6 +9,8 @@ This SDK allows freelancers, liquidity providers, and integrators to interact se
 > with complete, testnet-ready examples for both Node.js (keypair) and the
 > browser (Freighter).
 
+> 📋 **Release History:** See [CHANGELOG.md](./CHANGELOG.md) for version history and breaking changes.
+
 ## Installation
 
 ```bash
