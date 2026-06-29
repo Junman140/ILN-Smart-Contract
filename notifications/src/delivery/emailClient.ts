@@ -1,3 +1,4 @@
+import { Resend } from 'resend';
 import type { EmailClient, EmailMessage } from './emailDelivery.js';
 
 export interface ResendEmailClientOptions {
@@ -18,30 +19,27 @@ export function createEmailClient(options: ResendEmailClientOptions): EmailClien
     };
   }
 
+  const resend = new Resend(options.apiKey);
+
   return {
     async send(message: EmailMessage) {
-      const response = await fetch('https://api.resend.com/emails', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${options.apiKey}`,
-          'content-type': 'application/json',
-        },
-        body: JSON.stringify({
-          from: options.from,
-          to: message.to,
-          subject: message.subject,
-          html: message.html,
-          text: message.text,
-        }),
+      const response = await resend.emails.send({
+        from: options.from,
+        to: message.to,
+        subject: message.subject,
+        html: message.html,
+        text: message.text ?? undefined,
       });
 
-      if (!response.ok) {
-        const errorBody = await response.text().catch(() => '');
-        throw new Error(`Resend request failed with HTTP ${response.status}${errorBody ? `: ${errorBody}` : ''}`);
+      if (response.error) {
+        throw new Error(response.error.message);
       }
 
-      const data = (await response.json().catch(() => ({}))) as { id?: string };
-      return { id: data.id ?? `resend_${Date.now().toString(36)}` };
+      if (!response.data?.id) {
+        throw new Error('Resend response did not include an email id');
+      }
+
+      return { id: response.data.id };
     },
   };
 }
