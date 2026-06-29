@@ -2,11 +2,55 @@ import { Router } from 'express';
 import type { WebhookDeliveryService } from '../delivery/webhookDelivery.js';
 import type { SubscriptionStore } from '../subscriptions/subscriptionStore.js';
 
+interface WebhookDeliveryOptions {
+  http?: (url: string, init: any) => Promise<{ status: number }>;
+}
+
+async function validateWebhookUrl(url: string, opts?: WebhookDeliveryOptions): Promise<boolean> {
+  const httpClient = opts?.http;
+  if (!httpClient) {
+    try {
+      const urlObj = new URL(url);
+      if (urlObj.protocol !== 'http:' && urlObj.protocol !== 'https:') {
+        return false;
+      }
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  try {
+    const response = await httpClient(url, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ test: true }),
+    });
+    return response.status >= 200 && response.status < 500;
+  } catch {
+    return false;
+  }
+}
+
 export function createWebhooksRouter(
   store: SubscriptionStore,
   delivery: WebhookDeliveryService,
+  opts?: WebhookDeliveryOptions,
 ): Router {
   const router = Router();
+
+  router.get('/webhooks', (_req, res) => {
+    const subs = store.list();
+    res.json(
+      subs.map((sub) => ({
+        id: sub.id,
+        url: sub.url,
+        eventTypes: sub.eventTypes,
+        circuitState: delivery.getCircuitState(sub.endpointId),
+        createdAt: sub.createdAt,
+      })),
+    );
+  });
 
   router.get('/webhooks/:id', (req, res) => {
     const sub = store.get(req.params.id);
@@ -19,22 +63,85 @@ export function createWebhooksRouter(
       url: sub.url,
       eventTypes: sub.eventTypes,
       circuitState: delivery.getCircuitState(sub.endpointId),
+      createdAt: sub.createdAt,
     });
   });
 
-  router.post('/webhooks', (req, res) => {
+  router.post('/webhooks', async (req, res) => {
     const { url, secret, eventTypes, endpointId } = req.body ?? {};
-    if (!url || !secret || !Array.isArray(eventTypes)) {
+    if (!url || !secret || !Array.isArray(eventTypes) || eventTypes.length === 0) {
       res.status(400).json({ error: 'invalid_body' });
       return;
     }
+
+    const isValid = await validateWebhookUrl(url, opts);
+    if (!isValid) {
+      res.status(400).json({ error: 'invalid_url' });
+      return;
+    }
+
     const sub = store.create({
       endpointId: endpointId ?? url,
       url,
       secret,
       eventTypes,
     });
-    res.status(201).json(sub);
+    res.status(201).json({
+      id: sub.id,
+      url: sub.url,
+      eventTypes: sub.eventTypes,
+      createdAt: sub.createdAt,
+    });
+  });
+
+  router.put('/webhooks/:id', async (req, res) => {
+    const sub = store.get(req.params.id);
+    if (!sub) {
+      res.status(404).json({ error: 'not_found' });
+      return;
+    }
+
+    const { url, secret, eventTypes } = req.body ?? {};
+    const patch: any = {};
+
+    if (url !== undefined) {
+      const isValid = await validateWebhookUrl(url, opts);
+      if (!isValid) {
+        res.status(400).json({ error: 'invalid_url' });
+        return;
+      }
+      patch.url = url;
+    }
+
+    if (secret !== undefined) {
+      patch.secret = secret;
+    }
+
+    if (eventTypes !== undefined) {
+      if (!Array.isArray(eventTypes) || eventTypes.length === 0) {
+        res.status(400).json({ error: 'invalid_body' });
+        return;
+      }
+      patch.eventTypes = eventTypes;
+    }
+
+    if (Object.keys(patch).length === 0) {
+      res.status(400).json({ error: 'no_changes' });
+      return;
+    }
+
+    const updated = store.update(req.params.id, patch);
+    if (!updated) {
+      res.status(404).json({ error: 'not_found' });
+      return;
+    }
+
+    res.json({
+      id: updated.id,
+      url: updated.url,
+      eventTypes: updated.eventTypes,
+      createdAt: updated.createdAt,
+    });
   });
 
   router.delete('/webhooks/:id', (req, res) => {
