@@ -1,6 +1,7 @@
 import { CircuitBreaker, type CircuitState } from './circuitBreaker.js';
 import { SlidingWindowRateLimiter } from './rateLimiter.js';
 import { signPayload } from './signature.js';
+import type { RetryQueue } from '../queue/retryQueue.js';
 
 export interface WebhookEndpoint {
   id: string;
@@ -23,11 +24,19 @@ export interface WebhookDeliveryOptions {
   http: HttpClient;
   logger?: (msg: string) => void;
   now?: () => number;
+  retryQueue?: RetryQueue;
 }
 
 interface EndpointState {
   breaker: CircuitBreaker;
   limiter: SlidingWindowRateLimiter;
+}
+
+export interface WebhookPayload {
+  event: string;
+  invoiceId: number;
+  data: unknown;
+  timestamp: string;
 }
 
 export class WebhookDeliveryService {
@@ -73,6 +82,37 @@ export class WebhookDeliveryService {
     } catch (err) {
       state.breaker.recordFailure(this.opts.logger);
       return { ok: false, status: 0 };
+    }
+  }
+
+  async deliverWithRetry(
+    webhookId: string,
+    endpoint: WebhookEndpoint,
+    payload: WebhookPayload,
+  ): Promise<void> {
+    if (!this.opts.retryQueue) {
+      this.opts.logger?.('retryQueue not configured');
+      return;
+    }
+
+    const log = this.opts.retryQueue.enqueue(
+      webhookId,
+      payload.event,
+      payload.invoiceId,
+      payload,
+    );
+
+    const result = await this.deliver(endpoint, payload);
+
+    if (result.ok) {
+      this.opts.retryQueue.recordSuccess(log.id);
+      this.opts.logger?.(`webhook_delivered webhook_id=${webhookId} event=${payload.event}`);
+    } else if (result.skippedReason) {
+      this.opts.retryQueue.recordSkipped(log.id, result.skippedReason);
+      this.opts.logger?.(`webhook_skipped webhook_id=${webhookId} reason=${result.skippedReason}`);
+    } else {
+      this.opts.retryQueue.recordFailure(log.id, `HTTP ${result.status}`);
+      this.opts.logger?.(`webhook_failed webhook_id=${webhookId} attempt=${log.attempts + 1}`);
     }
   }
 
