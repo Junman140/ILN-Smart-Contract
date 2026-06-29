@@ -1,4 +1,4 @@
-.PHONY: build test fuzz changelog soroban-optimize spec
+.PHONY: build test fuzz changelog soroban-optimize spec seed reset-testnet
 
 build:
 	cargo build --target wasm32v1-none --release
@@ -33,3 +33,9 @@ fuzz:
 #   make changelog TAG=v1.0.0  # generate up to a specific tag
 changelog:
 	git cliff $(if $(TAG),--tag $(TAG)) --output CHANGELOG.md
+
+seed:
+	npx tsx scripts/seed.ts
+
+reset-testnet:
+	bash scripts/reset-testnet.sh
