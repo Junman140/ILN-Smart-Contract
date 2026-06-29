@@ -1,22 +1,30 @@
 import express from 'express';
 import { SubscriptionStore } from './subscriptions/subscriptionStore.js';
 import { WebhookDeliveryService } from './delivery/webhookDelivery.js';
+import { DeliveryHistoryStore } from './delivery/deliveryHistory.js';
 import { createWebhooksRouter } from './api/webhooks.js';
+import { createSlackRouter } from './api/slack.js';
+import type { SlackSubscription } from './api/slack.js';
 
 const port = Number(process.env.PORT ?? 3001);
 
 const store = new SubscriptionStore();
+const historyStore = new DeliveryHistoryStore();
 const delivery = new WebhookDeliveryService({
   http: async (url, init) => {
     const res = await fetch(url, init);
     return { status: res.status };
   },
   logger: (msg) => console.log(msg),
+  historyStore,
 });
+
+const slackStore = new Map<string, SlackSubscription>();
 
 const app = express();
 app.use(express.json());
-app.use(createWebhooksRouter(store, delivery));
+app.use(createWebhooksRouter(store, delivery, historyStore));
+app.use(createSlackRouter(slackStore));
 app.get('/health', (_req, res) => res.json({ status: 'ok' }));
 
 app.listen(port, () => {
