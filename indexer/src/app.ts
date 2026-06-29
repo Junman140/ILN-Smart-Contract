@@ -7,6 +7,7 @@ import { createInvoicesRouter } from './api/routes/invoices.js';
 import { config } from './config.js';
 import { createApiKeyMiddleware } from './middleware/apiKey.js';
 import { createRateLimitMiddleware } from './middleware/rateLimit.js';
+import { createEventsRouter } from './api/routes/events.js';
 
 export interface CreateAppOptions {
   apiKeys?: string[];
@@ -31,6 +32,7 @@ export function createApp(
   app.use(createReputationRouter(db));
   app.use(createStatsRouter(db));
   app.use(createInvoicesRouter(db));
+  app.use(createEventsRouter(db));
 
   app.get('/health', (_req, res) => {
     res.json({ status: 'ok' });
