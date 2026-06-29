@@ -2,6 +2,7 @@ import { CircuitBreaker, type CircuitState } from './circuitBreaker.js';
 import { SlidingWindowRateLimiter } from './rateLimiter.js';
 import { signPayload } from './signature.js';
 import type { RetryQueue } from '../queue/retryQueue.js';
+import type { DeliveryHistoryStore } from './deliveryHistory.js';
 
 export interface WebhookEndpoint {
   id: string;
@@ -25,6 +26,7 @@ export interface WebhookDeliveryOptions {
   logger?: (msg: string) => void;
   now?: () => number;
   retryQueue?: RetryQueue;
+  historyStore?: DeliveryHistoryStore;
 }
 
 interface EndpointState {
@@ -51,6 +53,7 @@ export class WebhookDeliveryService {
   async deliver(
     endpoint: WebhookEndpoint,
     payload: unknown,
+    eventType?: string,
   ): Promise<DeliveryResult> {
     const state = this.stateFor(endpoint.id);
     if (!state.limiter.tryConsume()) {
@@ -64,6 +67,8 @@ export class WebhookDeliveryService {
 
     const body = JSON.stringify(payload);
     const signature = signPayload(endpoint.secret, body);
+    let statusCode = 0;
+    let responseBody = '';
     try {
       const res = await this.opts.http(endpoint.url, {
         method: 'POST',
@@ -73,16 +78,34 @@ export class WebhookDeliveryService {
         },
         body,
       });
+      statusCode = res.status;
       if (res.status >= 200 && res.status < 300) {
         state.breaker.recordSuccess();
-        return { ok: true, status: res.status };
+      } else {
+        state.breaker.recordFailure(this.opts.logger);
       }
-      state.breaker.recordFailure(this.opts.logger);
-      return { ok: false, status: res.status };
     } catch (err) {
       state.breaker.recordFailure(this.opts.logger);
-      return { ok: false, status: 0 };
+      statusCode = 0;
+      responseBody = err instanceof Error ? err.message : String(err);
     }
+
+    if (this.opts.historyStore && eventType) {
+      this.opts.historyStore.add({
+        webhookId: endpoint.id,
+        eventType,
+        deliveredAt: Date.now(),
+        statusCode,
+        responseBody,
+        attemptCount: 1,
+        nextRetryAt: statusCode >= 500 ? Date.now() + 60000 : null,
+      });
+    }
+
+    return {
+      ok: statusCode >= 200 && statusCode < 300,
+      status: statusCode,
+    };
   }
 
   async deliverWithRetry(
@@ -102,7 +125,7 @@ export class WebhookDeliveryService {
       payload,
     );
 
-    const result = await this.deliver(endpoint, payload);
+    const result = await this.deliver(endpoint, payload, payload.event);
 
     if (result.ok) {
       this.opts.retryQueue.recordSuccess(log.id);

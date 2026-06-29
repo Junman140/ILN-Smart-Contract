@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import type { WebhookDeliveryService } from '../delivery/webhookDelivery.js';
 import type { SubscriptionStore } from '../subscriptions/subscriptionStore.js';
+import type { DeliveryHistoryStore } from '../delivery/deliveryHistory.js';
 
 interface WebhookDeliveryOptions {
   http?: (url: string, init: any) => Promise<{ status: number }>;
@@ -36,8 +37,23 @@ export function createWebhooksRouter(
   store: SubscriptionStore,
   delivery: WebhookDeliveryService,
   opts?: WebhookDeliveryOptions,
+  historyStore?: DeliveryHistoryStore,
 ): Router {
   const router = Router();
+
+  function requireAuth(req: any, res: any, subId: string): boolean {
+    const sub = store.get(subId);
+    if (!sub) {
+      res.status(404).json({ error: 'not_found' });
+      return false;
+    }
+    const apiKey = req.headers['x-api-key'] as string | undefined;
+    if (!apiKey || apiKey !== sub.secret) {
+      res.status(401).json({ error: 'unauthorized' });
+      return false;
+    }
+    return true;
+  }
 
   router.get('/webhooks', (_req, res) => {
     const subs = store.list();
@@ -148,6 +164,18 @@ export function createWebhooksRouter(
     const ok = store.delete(req.params.id);
     res.status(ok ? 204 : 404).end();
   });
+
+  if (historyStore) {
+    router.get('/webhooks/:id/deliveries', (req, res) => {
+      if (!requireAuth(req, res, req.params.id)) return;
+
+      const page = Math.max(1, parseInt(req.query.page as string, 10) || 1);
+      const pageSize = Math.min(100, Math.max(1, parseInt(req.query.pageSize as string, 10) || 20));
+
+      const result = historyStore.listByWebhook(req.params.id, page, pageSize);
+      res.json(result);
+    });
+  }
 
   return router;
 }
