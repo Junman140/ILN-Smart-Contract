@@ -21,3 +21,5 @@ We aim to acknowledge receipt of vulnerability reports within 48 hours and provi
 The ILN Indexer is designed to be **read-only from the network**. It strictly polls the Stellar/Soroban blockchain for state changes and persists them locally. 
 
 By design, **the indexer does not expose any authenticated or unauthenticated write/state-change API routes** (`POST`, `PUT`, `DELETE`). All state changes must occur on-chain via the Soroban smart contract. Therefore, API keys or JWTs are not required for the indexer API.
+
+The public read API is protected with request throttling by default. Clients that need higher throughput can send an `X-API-Key` header that matches one of the comma-separated values in `API_KEYS`; authenticated clients bypass the public rate limit.

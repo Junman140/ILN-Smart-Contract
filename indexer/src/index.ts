@@ -5,7 +5,7 @@ import { createApp } from './app.js';
 import { EventWebSocketEndpoint } from './api/websocket.js';
 
 const db = getDb(config.dbPath);
-const app = createApp(db);
+const app = createApp(db, { apiKeys: config.apiKeys });
 
 const httpServer = createServer(app);
 const wsEndpoint = new EventWebSocketEndpoint({ server: httpServer, path: '/events' });
