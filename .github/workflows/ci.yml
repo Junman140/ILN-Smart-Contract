@@ -51,7 +51,7 @@ jobs:
         run: pnpm run test:ci
 
       - name: Upload coverage reports
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: typescript-coverage
           path: |
@@ -204,7 +204,7 @@ jobs:
             --exclude-files 'contracts/invoice_liquidity/src/test.rs'
 
       - name: Upload coverage report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: coverage-report
           path: coverage/cobertura.xml
