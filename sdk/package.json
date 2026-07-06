@@ -48,7 +48,7 @@
     "@vitest/coverage-v8": "^1.6.1",
     "@size-limit/file": "^11.1.6",
     "git-cliff": "^2.2.1",
-    "size-limit": "^11.1.6",
+    "size-limit": "^12.1.0",
     "tsup": "^8.0.2",
     "typedoc": "^0.25.12",
     "typescript": "^5.4.0",
