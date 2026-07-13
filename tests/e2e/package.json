@@ -25,6 +25,6 @@
     "jest-allure-reporter": "^1.2.3",
     "ts-jest": "^29.1.0",
     "tsx": "^4.7.0",
-    "typescript": "^5.4.0"
+    "typescript": "^7.0.2"
   }
 }
