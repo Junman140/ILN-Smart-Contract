@@ -269,3 +269,139 @@ export async function listProposals(
   }
   return proposals;
 }
+
+/**
+ * Simulate a read-only contract call and return the decoded return value.
+ */
+async function simulateView(
+  server: SorobanRpc.Server,
+  contractAddress: string,
+  method: string,
+  args: Parameters<Contract["call"]> extends [string, ...infer Rest] ? Rest : never,
+  sourceAccount: Account,
+  networkPassphrase: string
+): Promise<unknown> {
+  const contract = new Contract(contractAddress);
+  const op = (contract.call as any)(method, ...args);
+
+  const tx = new TransactionBuilder(sourceAccount, {
+    fee: BASE_FEE,
+    networkPassphrase,
+  })
+    .addOperation(op)
+    .setTimeout(30)
+    .build();
+
+  const sim = await retry(() => server.simulateTransaction(tx));
+  if (SorobanRpc.Api.isSimulationError(sim)) {
+    throw ILNError.fromError(sim.error);
+  }
+  if (!sim.result?.retval) {
+    return undefined;
+  }
+  return scValToNative(sim.result.retval);
+}
+
+/**
+ * Return the direct delegate for an address, if any (read-only).
+ */
+export async function getDelegate(
+  server: SorobanRpc.Server,
+  contractAddress: string,
+  addr: string,
+  sourceAccount: Account,
+  networkPassphrase: string
+): Promise<string | null> {
+  const raw = await simulateView(
+    server,
+    contractAddress,
+    "get_delegate",
+    [nativeToScVal(addr, { type: "address" })],
+    sourceAccount,
+    networkPassphrase
+  );
+  if (raw === undefined || raw === null) {
+    return null;
+  }
+  return String(raw);
+}
+
+/**
+ * Fetch the configured minimum quorum in basis points (read-only).
+ */
+export async function getMinQuorumBps(
+  server: SorobanRpc.Server,
+  contractAddress: string,
+  sourceAccount: Account,
+  networkPassphrase: string
+): Promise<number> {
+  const raw = await simulateView(
+    server,
+    contractAddress,
+    "get_min_quorum_bps",
+    [],
+    sourceAccount,
+    networkPassphrase
+  );
+  return Number(raw);
+}
+
+/**
+ * Fetch the minimum token balance required to submit proposals (read-only).
+ */
+export async function getMinProposalBalance(
+  server: SorobanRpc.Server,
+  contractAddress: string,
+  sourceAccount: Account,
+  networkPassphrase: string
+): Promise<bigint> {
+  const raw = await simulateView(
+    server,
+    contractAddress,
+    "get_min_proposal_balance",
+    [],
+    sourceAccount,
+    networkPassphrase
+  );
+  return BigInt(String(raw ?? 0));
+}
+
+/**
+ * Fetch the execution delay in ledgers (read-only).
+ */
+export async function getExecutionDelay(
+  server: SorobanRpc.Server,
+  contractAddress: string,
+  sourceAccount: Account,
+  networkPassphrase: string
+): Promise<number> {
+  const raw = await simulateView(
+    server,
+    contractAddress,
+    "get_execution_delay",
+    [],
+    sourceAccount,
+    networkPassphrase
+  );
+  return Number(raw);
+}
+
+/**
+ * Check whether admin veto power is still active (read-only).
+ */
+export async function isVetoPowerEnabled(
+  server: SorobanRpc.Server,
+  contractAddress: string,
+  sourceAccount: Account,
+  networkPassphrase: string
+): Promise<boolean> {
+  const raw = await simulateView(
+    server,
+    contractAddress,
+    "is_veto_power_enabled",
+    [],
+    sourceAccount,
+    networkPassphrase
+  );
+  return Boolean(raw);
+}

@@ -5,6 +5,11 @@ import {
   executeProposal,
   getProposal,
   listProposals,
+  getDelegate,
+  getMinQuorumBps,
+  getMinProposalBalance,
+  getExecutionDelay,
+  isVetoPowerEnabled,
 } from "./governance.js";
 import { ProposalAction, ProposalStatus } from "../types/governance.js";
 import { Account, SorobanRpc, scValToNative } from "@stellar/stellar-sdk";
@@ -93,5 +98,47 @@ describe("governance", () => {
     });
     expect(active).toHaveLength(1);
     expect(active[0].id).toBe(1n);
+  });
+
+  it("getDelegate returns the delegate address or null", async () => {
+    mockScValToNative.mockReturnValue(PROPOSER);
+    const delegate = await getDelegate(mockServer, CONTRACT, PROPOSER, account, PASS);
+    expect(delegate).toBe(PROPOSER);
+  });
+
+  it("getDelegate returns null when no delegate set", async () => {
+    mockScValToNative.mockReturnValue(undefined);
+    const delegate = await getDelegate(mockServer, CONTRACT, PROPOSER, account, PASS);
+    expect(delegate).toBeNull();
+  });
+
+  it("getMinQuorumBps returns the quorum in basis points", async () => {
+    mockScValToNative.mockReturnValue(1000);
+    const q = await getMinQuorumBps(mockServer, CONTRACT, account, PASS);
+    expect(q).toBe(1000);
+  });
+
+  it("getMinProposalBalance returns the minimum balance", async () => {
+    mockScValToNative.mockReturnValue(1000);
+    const b = await getMinProposalBalance(mockServer, CONTRACT, account, PASS);
+    expect(b).toBe(1000n);
+  });
+
+  it("getExecutionDelay returns the delay in ledgers", async () => {
+    mockScValToNative.mockReturnValue(42);
+    const d = await getExecutionDelay(mockServer, CONTRACT, account, PASS);
+    expect(d).toBe(42);
+  });
+
+  it("isVetoPowerEnabled returns true when active", async () => {
+    mockScValToNative.mockReturnValue(true);
+    const enabled = await isVetoPowerEnabled(mockServer, CONTRACT, account, PASS);
+    expect(enabled).toBe(true);
+  });
+
+  it("isVetoPowerEnabled returns false when disabled", async () => {
+    mockScValToNative.mockReturnValue(false);
+    const enabled = await isVetoPowerEnabled(mockServer, CONTRACT, account, PASS);
+    expect(enabled).toBe(false);
   });
 });
